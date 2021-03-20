@@ -56,8 +56,11 @@ type MappingsFile struct {
 }
 
 func (m *MappingsFile) Validate() error {
-	for _, entry := range m.Mappings {
-		if err :=entry.Validate(); err != nil {
+	for host, entry := range m.Mappings {
+		if host == "localhost" {
+			return errors.New("Localhost is reserved, you cannot use this host")
+		}
+		if err := entry.Validate(); err != nil {
 			return err
 		}
 	}

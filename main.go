@@ -299,13 +299,31 @@ func (f *FastServer) mappingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (f *FastServer) healthy(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
 func (f *FastServer) index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Add("Content-Type", "text/html")  // force
 
-	if r.RequestURI == "/favicon.ico" {
-		f.notFoundHandler(w, r)
+	processLocalHost := func() {
+		if r.RequestURI == "/healthy" {
+			f.healthy(w, r)
+		}
+	}
+
+	processRequest := func() {
+		if r.RequestURI == "/favicon.ico" {
+			f.notFoundHandler(w, r)
+		} else {
+			f.mappingHandler(w, r)
+		}
+	}
+
+	if f.parseHost(r.Host) == "localhost" {
+		processLocalHost()
 	} else {
-		f.mappingHandler(w, r)
+		processRequest()
 	}
 }
 

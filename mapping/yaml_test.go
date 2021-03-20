@@ -10,32 +10,26 @@ import (
 These patterns will not pass validation.
  */
 var badMappings = []struct{
-	host string
 	path string
 	redirect string
 }{
 	{
-		"localhost",
 		"", // empty path
 		"https://127.0.0.1",
 	},
 	{
-		"localhost",
 		"pathA",
 		"://127.0.0.1",  // no scheme
 	},
 	{
-		"localhost",
 		"pathA",  // path has no slash prefix
 		"https://127.0.0.1",
 	},
 	{
-		"localhost",
 		"/pathA",
 		"http://127.0.0.1",  // we only accept https, sorry
 	},
 	{
-		"localhost",
 		"/pathA",
 		"ftp://127.0.0.1",  // we only accept https, sorry
 	},
@@ -103,7 +97,7 @@ func Test_MappingsMap(t *testing.T) {
 	}
 }
 
-func Test_MappingFileWithRoot(t *testing.T) {
+func Test_MappingFileWithLocalhost(t *testing.T) {
 	data := MappingsFile{}
 	testFile := `---
 mapping:
@@ -116,20 +110,38 @@ mapping:
 		t.Errorf("Could not parse test data: %v", err)
 	}
 
+	if err := data.Validate(); err == nil {
+		t.Errorf("Data was expected to be invalid as you cannot use localhost: %v", err)
+	}
+}
+
+func Test_MappingFileWithRoot(t *testing.T) {
+	data := MappingsFile{}
+	testFile := `---
+mapping:
+  testhost:
+    "/my-path": https://localhost:8081
+    "/": https://localhost:8082
+`
+
+	if err := yaml.Unmarshal([]byte(testFile), &data); err != nil {
+		t.Errorf("Could not parse test data: %v", err)
+	}
+
 	if err := data.Validate(); err != nil {
 		t.Errorf("Data was expected to be valid: %v", err)
 	}
 
-	if uri := data.GetRedirectUri("localhost", "/my-path"); uri != "https://localhost:8081" {
+	if uri := data.GetRedirectUri("testhost", "/my-path"); uri != "https://localhost:8081" {
 		t.Error("Incorrect URI obtained, expected https://localhost:8081")
 	}
 
-	if uri := data.GetRedirectUri("localhost", "/"); uri != "https://localhost:8082" {
+	if uri := data.GetRedirectUri("testhost", "/"); uri != "https://localhost:8082" {
 		t.Error("Incorrect URI obtained, expected https://localhost:8082")
 	}
 
 	// we treat root as a wildcard pattern
-	if uri := data.GetRedirectUri("localhost", "/something-not-there"); uri != "https://localhost:8082" {
+	if uri := data.GetRedirectUri("testhost", "/something-not-there"); uri != "https://localhost:8082" {
 		t.Error("Incorrect URI obtained, expected https://localhost:8082")
 	}
 
@@ -139,7 +151,7 @@ func Test_MappingFileWithoutRoot(t *testing.T) {
 	data := MappingsFile{}
 	testFile := `---
 mapping:
-  localhost:
+  testhost:
     "/my-path": https://localhost:8081
 `
 
@@ -151,11 +163,11 @@ mapping:
 		t.Errorf("Data was expected to be valid: %v", err)
 	}
 
-	if uri := data.GetRedirectUri("localhost", "/my-path"); uri != "https://localhost:8081" {
+	if uri := data.GetRedirectUri("testhost", "/my-path"); uri != "https://localhost:8081" {
 		t.Error("Incorrect URI obtained, expected https://localhost:8081")
 	}
 
-	if uri := data.GetRedirectUri("localhost", "/"); uri != "" {
+	if uri := data.GetRedirectUri("testhost", "/"); uri != "" {
 		t.Error("Incorrect URI obtained, expected empty string since mapping doesn't specify a wildcard root '/'")
 	}
 }
