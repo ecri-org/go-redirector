@@ -233,7 +233,7 @@ func (f *FastServer) parseHost(host string) string {
 }
 
 func (f *FastServer) Serve(port int) error {
-	engine := html.New("./", ".tpl") // golang template
+	engine := html.New("./views", ".tpl") // golang template
 	server := fiber.New(fiber.Config{
 		Views: engine,
 		//Prefork: true,  // not right now ...
@@ -258,7 +258,7 @@ func (f *FastServer) Serve(port int) error {
 
 func NewFastServer(config *Config, mappingFile *mapping.MappingsFile) *FastServer {
 	//exporter, err := prometheus.NewExporter(prometheus.Options{
-	//	Namespace: "simple-redirector",
+	//	Namespace: "go-redirector",
 	//})
 
 	//if err != nil {
@@ -275,7 +275,7 @@ func Run(args []string) {
 		{
 			Name:    "run",
 			Aliases: []string{"r"},
-			Usage:   "run simple redirector",
+			Usage:   "run go-redirector",
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "log-level, l",
@@ -325,8 +325,8 @@ func Run(args []string) {
 	}
 
 	app := cli.NewApp()
-	app.Name = "simple-redirector"
-	app.Usage = "simple-redirector"
+	app.Name = "go-redirector"
+	app.Usage = "go-redirector"
 	app.Commands = AppCommands
 	app.Version = fmt.Sprintf("info\n version: %s\n commit: %s\n built: %s",
 		BUILD_VERSION, BUILD_SHA, BUILD_DATE)
