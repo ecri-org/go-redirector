@@ -1,0 +1,5 @@
+mapping:
+  localhost:
+    paths: /my-path
+    redirect: https://localhost:8081
+
