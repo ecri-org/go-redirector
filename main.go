@@ -9,11 +9,12 @@ import (
 	"github.com/urfave/cli"
 	"go-redirector/errors"
 	"go-redirector/mapping"
-	"html/template"
+	tplhtml "html/template" // this reduces performance via reflection
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	tpltxt "text/template"
 )
 
 var (
@@ -22,23 +23,23 @@ var (
 	BUILD_DATE    string
 )
 
-// When using the template below, the hidden paragraph at the bottom is unique.
+// When using the templateHtml below, the hidden paragraph at the bottom is unique.
 const DEFAULT_HTML_TEMPLATE = `
 <html>
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 </head>
 <body>
-<p>The page you reached has moved to <a href="{{.Redirect}}">{{.Redirect}}</a>, please update your bookmarks.</p>
-<p>You will be automatically redirected to {{.Redirect}} in <span id="countdown">15</span> seconds.</p>
-<p>Or click <a href="{{.Redirect}}">THIS LINK</a> to go there now.</p>
+<p>The page you reached has moved to <a href="{{.RedirectUri}}">{{.RedirectUri}}</a>, please update your bookmarks.</p>
+<p>You will be automatically redirected to {{.RedirectUri}} in <span id="countdown">15</span> seconds.</p>
+<p>Or click <a href="{{.RedirectUri}}">THIS LINK</a> to go there now.</p>
 <script type="text/javascript">
 	let seconds = 15;
 
 	function countdown() {
 		seconds = seconds - 1;
 		if (seconds < 0) {
-			window.location = "{{.Redirect}}";
+			window.location = "{{.RedirectUri}}";
 		} else {
 			document.getElementById("countdown").innerHTML = seconds.toString();
 			window.setTimeout("countdown()", 1000);
@@ -55,6 +56,7 @@ const (
 	LOG_LEVEL    = "LOG_LEVEL"
 	MAPPING_PATH = "MAPPING_PATH"
 	PORT         = "PORT"
+	PERFORMANCE_MODE = "PERFORMANCE_MODE"
 
 	DEFAULT_LOG_LEVEL = log.DebugLevel
 	DEFAULT_MAPPING_PATH = "./redirect-map.yml"
@@ -66,17 +68,22 @@ type Config struct {
 	LogLevel     log.Level
 	MappingPath  string
 	templateFile string
-	template     *template.Template
+	templateHtml *tplhtml.Template
+	templateText *tpltxt.Template
 	Port         int
 	MappingsFile *mapping.MappingsFile
+	PerformanceMode bool
 }
 
-func (c *Config) setPort(port string) {
-	if port != "" { // use right away
-		c.SetPort(port)
-	} else if port := os.Getenv(PORT); port != "" {
-		c.SetPort(port)
+func (c *Config) setPerformance(performanceMode bool) {
+	c.PerformanceMode = performanceMode
+	if performanceMode {
+		log.Info("Performance Mode Enabled")
 	}
+}
+
+func (c *Config) setPort(port int) {
+	c.Port = port
 }
 
 func (c *Config) setMappingFile(filePath string) {
@@ -94,34 +101,72 @@ func (c *Config) setMappingFile(filePath string) {
 }
 
 func (c *Config) setLogLevel(logLevel string) {
-	if logLevel != "" {
-		if level, err := log.ParseLevel(logLevel); err != nil {
-			log.Errorf("Error: %v", err)
-			os.Exit(errors.EXIT_CODE_INVALID_LOGLEVEL)
-		} else {
-			c.LogLevel = level
-		}
+	if level, err := log.ParseLevel(logLevel); err != nil {
+		log.Errorf("Error: %v", err)
+		os.Exit(errors.EXIT_CODE_INVALID_LOGLEVEL)
+	} else {
+		c.LogLevel = level
+		log.SetLevel(level)
+		log.SetFormatter(&log.JSONFormatter{})
 	}
 }
 
+// Proxy
 func (c *Config) SetTemplateFromFile(templateFile string) {
+	if c.PerformanceMode {
+		c.SetTextTemplateFromFile(templateFile)
+	} else {
+		c.SetHtmlTemplateFromFile(templateFile)
+	}
+}
+
+// TODO: should use interface instead!
+func (c *Config) SetTextTemplateFromFile(templateFile string) {
 	useBuiltIn := func() {
-		template := template.New("default")
+		template := tpltxt.New("default")
 		if tpl, err := template.Parse(DEFAULT_HTML_TEMPLATE); err != nil {
-			log.Fatalf("Could not read template file [%s]", templateFile)
+			log.Fatalf("Could not read templateHtml file [%s]", templateFile)
 			os.Exit(errors.EXIT_CODE_TPL_ERROR)
 		} else {
-			c.template = tpl
+			c.templateText = tpl
 		}
 	}
 
 	useFile := func() {
 		c.templateFile = templateFile
-		if tpl, err := template.ParseFiles(templateFile); err != nil {
-			log.Fatalf("Could not read template file [%s]", templateFile)
+		if tpl, err := tpltxt.ParseFiles(templateFile); err != nil {
+			log.Fatalf("Could not read templateHtml file [%s]", templateFile)
 			os.Exit(errors.EXIT_CODE_TPL_NOT_FOUND)
 		} else {
-			c.template = tpl
+			c.templateText = tpl
+		}
+	}
+
+	if templateFile == "" {
+		useBuiltIn()
+	} else {
+		useFile()
+	}
+}
+
+func (c *Config) SetHtmlTemplateFromFile(templateFile string) {
+	useBuiltIn := func() {
+		template := tplhtml.New("default")
+		if tpl, err := template.Parse(DEFAULT_HTML_TEMPLATE); err != nil {
+			log.Fatalf("Could not read templateHtml file [%s]", templateFile)
+			os.Exit(errors.EXIT_CODE_TPL_ERROR)
+		} else {
+			c.templateHtml = tpl
+		}
+	}
+
+	useFile := func() {
+		c.templateFile = templateFile
+		if tpl, err := tplhtml.ParseFiles(templateFile); err != nil {
+			log.Fatalf("Could not read templateHtml file [%s]", templateFile)
+			os.Exit(errors.EXIT_CODE_TPL_NOT_FOUND)
+		} else {
+			c.templateHtml = tpl
 		}
 	}
 
@@ -140,23 +185,6 @@ func (c *Config) SetPort(port string) {
 	}
 }
 
-func setLogLevel() (level log.Level) {
-	var err error
-
-	if logLevel := os.Getenv(LOG_LEVEL); len(logLevel) <= 0 {
-		return DEFAULT_LOG_LEVEL
-	} else {
-		if level, err = log.ParseLevel(logLevel); err == nil {
-			log.SetLevel(level)
-			return
-		} else {
-			log.Errorf("Incorrect Log Level set. Level %s is non existent", level)
-			os.Exit(errors.EXIT_CODE_CONFIG_ERROR)
-			return
-		}
-	}
-}
-
 func setMappingPath() string {
 	if logPath := os.Getenv(MAPPING_PATH); len(logPath) <= 0 { // if not set give default
 		return DEFAULT_MAPPING_PATH
@@ -166,11 +194,9 @@ func setMappingPath() string {
 }
 
 func NewConfig() *Config {
-	logLevel := setLogLevel()
 	mappingPath := setMappingPath()
 
 	return &Config{
-		LogLevel:    logLevel,
 		MappingPath: mappingPath,
 		Port: DEFAULT_PORT,
 	}
@@ -204,18 +230,36 @@ func LoadEnv() *Config {
 	return NewConfig()
 }
 
+type TemplateData struct {
+	RedirectUri string
+}
+
+func NewTemplateData(redirectUri string) *TemplateData {
+	return &TemplateData{RedirectUri: redirectUri}
+}
+
 type FastServer struct {
 	Config *Config
 	MappingFile *mapping.MappingsFile
 }
 
-func (f *FastServer) RenderTemplate(mappingData mapping.Mapping) (string, error) {
+func (f *FastServer) RenderTemplate(data *TemplateData) (string, error) {
 	var tpl bytes.Buffer
-	if err := f.Config.template.Execute(&tpl, mappingData); err != nil {
-		log.Fatalf("Encountered issues rendering template.")
-		return "", err
+
+	if f.Config.PerformanceMode {
+		if err := f.Config.templateText.Execute(&tpl, data); err != nil {
+			log.Errorf("Encountered issues rendering templateHtml, %v", err)
+			return "", err
+		} else {
+			return tpl.String(), nil
+		}
 	} else {
-		return tpl.String(), nil
+		if err := f.Config.templateHtml.Execute(&tpl, data); err != nil {
+			log.Errorf("Encountered issues rendering templateHtml, %v", err)
+			return "", err
+		} else {
+			return tpl.String(), nil
+		}
 	}
 }
 
@@ -229,18 +273,21 @@ func (f *FastServer) notFoundHandler(w http.ResponseWriter, r *http.Request) {
 
 func (f *FastServer) mappingHandler(w http.ResponseWriter, r *http.Request) {
 	host := f.parseHost(r.Host)
-	if mappingFile, err := f.MappingFile.Get(host); err != nil {
+	uri := r.RequestURI
+
+	if redirectUri := f.MappingFile.GetRedirectUri(host, uri); redirectUri == "" {
 		log.Infof("Request not found for [%s%s], remote client [%s] with user-agent: [%s]",
-			host, r.RequestURI, r.RemoteAddr, r.Header.Get("User-Agent"),
+			host, uri, r.RemoteAddr, r.Header.Get("User-Agent"),
 		)
 		// No content, just hang up with a http code right now.
 		w.WriteHeader(http.StatusNotFound)
 	} else {
 		log.Infof("Redirecting to [%s%s] from [%s] for remote client [%s] with user-agent: [%s]",
-			mappingFile.Redirect, r.RequestURI, host, r.RemoteAddr, r.Header.Get("User-Agent"),
+			redirectUri, uri, host, r.RemoteAddr, r.Header.Get("User-Agent"),
 		)
 
-		content, renderError := f.RenderTemplate(mappingFile)
+		data := NewTemplateData(redirectUri)
+		content, renderError := f.RenderTemplate(data)
 		if renderError != nil {
 			log.Error(renderError)
 			fmt.Fprint(w, renderError)
@@ -252,13 +299,8 @@ func (f *FastServer) mappingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
-/**
-Since go1.6 we should be able to do concurrent read on a map.
-NOTE: concurrent map write see above
- */
 func (f *FastServer) index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	//w.Header().Add("Content-Type", "text/html")
+	w.Header().Add("Content-Type", "text/html")  // force
 
 	if r.RequestURI == "/favicon.ico" {
 		f.notFoundHandler(w, r)
@@ -300,32 +342,40 @@ func Run(args []string) {
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "log-level, l",
+					EnvVar: LOG_LEVEL,
 					Usage: "Log level of the app `LOG_LEVEL`",
 				},
 				cli.StringFlag{
 					Name:  "file, f",
+					EnvVar: MAPPING_PATH,
 					Usage: "Use the mapping file specified",
 				},
 				cli.StringFlag{
 					Name:  "template, t",
-					Usage: "Use the specified golang template file, otherwise rely on app provided html",
+					EnvVar: DEFAULT_TEMPLATE_PATH,
+					Usage: "Use the specified golang templateHtml file, otherwise rely on app provided html",
 				},
-				cli.StringFlag{
+				cli.IntFlag{
 					Name:  "port, p",
-					Usage: "port to listen on, defaults to 8080",
+					EnvVar: PORT,
+					Value: DEFAULT_PORT,
+					Usage: fmt.Sprintf("port to listen on, defaults to %d", DEFAULT_PORT),
+				},
+				cli.BoolFlag{
+					Name:  "performance-mode",
+					EnvVar: PERFORMANCE_MODE,
+					Usage: "run using a faster templating system",
 				},
 			},
 			Action: func(c *cli.Context) error {
 				config := LoadEnv()  // we load env variable settings first, commandline params may override
-				// set log-level, which possibly can override any existing log-level
+				// Must set these first
 				config.setLogLevel(c.String("log-level"))
+				config.setPerformance(c.Bool("performance-mode"))
+
 				config.SetTemplateFromFile(c.String("template"))
 				config.setMappingFile(c.String("file"))
-				config.setPort(c.String("port"))
-
-				log.SetLevel(config.LogLevel)
-				// Set format to json to help devops out
-				log.SetFormatter(&log.JSONFormatter{})
+				config.setPort(c.Int("port"))
 
 				log.Infof("Loaded [%d] redirect mappings.", len(config.MappingsFile.Mappings))
 				log.Infof("Running server on port [%d].", config.Port)

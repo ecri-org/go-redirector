@@ -2,6 +2,7 @@ package mapping
 
 import (
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"testing"
 )
 
@@ -40,57 +41,36 @@ var badMappings = []struct{
 	},
 }
 
-func Test_MappingFactory(t *testing.T) {
-	path := "/"
-	redirect := "127.0.0.1"
-	mapping := NewMapping(path, redirect)
-	//if mapping.Host != host {
-	//	t.Errorf("MappingsFile factory failed, expected host: [%s], got [%s]", host, mapping.Host)
-	//}
-	if mapping.Path != path {
-		t.Errorf("MappingsFile factory failed, expected path: [%s], got [%s]", path, mapping.Path)
-	}
-	if mapping.Redirect != redirect {
-		t.Errorf("MappingsFile factory failed, expected redirect uri: [%s], got [%s]", redirect, mapping.Redirect)
-	}
-}
-
 func Test_MappingValidate(t *testing.T) {
 	path := "/"
 	redirect := "https://127.0.0.1"
-	mapping := NewMapping(path, redirect)
+	mapping := Mapping{
+		path: redirect,
+	}
 
-	_, err := mapping.Validate()
-	if err != nil {
+	if err := mapping.Validate(); err != nil {
 		t.Errorf("Could not parse and validate new MappingsFile, error:[%s]", err)
 	}
 }
 
-/**
-Here we go one level deeper than above's validate to test the scheme. We mutate and force
-all schemes to be HTTPS. Test to make sure this actually happens.
- */
 func Test_MappingScheme(t *testing.T) {
-	expectedScheme := "https"
-
 	path := "/"
 	redirect := "https://127.0.0.1"
-	mapping := NewMapping(path, redirect)
+	mapping := Mapping{
+		path: redirect,
+	}
 
-	url, err := mapping.Validate()
-	if err != nil {
+	if err := mapping.Validate(); err != nil {
 		t.Errorf("Could not parse and validate new MappingsFile, error:[%s]", err)
-	} else {
-		if url.Scheme != expectedScheme {
-			t.Errorf("Expected scheme [%s], but got [%s]", expectedScheme, url.Scheme)
-		}
 	}
 }
 
 func Test_badMappings(t *testing.T) {
 	for index, testData := range badMappings {
-		mappingEntry := NewMapping(testData.path, testData.redirect)
-		if _, err := mappingEntry.Validate(); err == nil {
+		mapping := Mapping{
+			testData.path: testData.redirect,
+		}
+		if err := mapping.Validate(); err == nil {
 			msg := fmt.Sprintf("Expected badMappings[%d] to be invalid, ended up being valid.", index)
 			t.Errorf(msg)
 		}
@@ -105,17 +85,77 @@ func Test_MappingsMap(t *testing.T) {
 
 	redirectMap := MappingsFile{
 		Mappings: map[string]Mapping{
-			expectedKey: Mapping{"/mypath", "https://127.0.0.1"},
+			expectedKey: {
+				"/mypath": "https://127.0.0.1",
+				"/mypath2": "https://127.0.0.1",
+			},
 		},
 	}
 
-	// Get something we know exists
-	if _, err := redirectMap.Get(expectedKey); err != nil {
+	// GetRedirectUri something we know exists
+	if value := redirectMap.GetRedirectUri(expectedKey, "/mypath"); value == "" {
 		t.Errorf("Expected a mapping")
 	}
 
-	// Get a key that does not exist
-	if _, err := redirectMap.Get("n/a"); err == nil {
-		t.Errorf("Expected to get an error for key[%s]", "n/a")
+	// GetRedirectUri a key that does not exist
+	if value := redirectMap.GetRedirectUri("n/a", ""); value != "" {
+		t.Errorf("Expected to get an error for a search of key[%s]", "n/a")
+	}
+}
+
+func Test_MappingFileWithRoot(t *testing.T) {
+	data := MappingsFile{}
+	testFile := `---
+mapping:
+  localhost:
+    "/my-path": https://localhost:8081
+    "/": https://localhost:8082
+`
+
+	if err := yaml.Unmarshal([]byte(testFile), &data); err != nil {
+		t.Errorf("Could not parse test data: %v", err)
+	}
+
+	if err := data.Validate(); err != nil {
+		t.Errorf("Data was expected to be valid: %v", err)
+	}
+
+	if uri := data.GetRedirectUri("localhost", "/my-path"); uri != "https://localhost:8081" {
+		t.Error("Incorrect URI obtained, expected https://localhost:8081")
+	}
+
+	if uri := data.GetRedirectUri("localhost", "/"); uri != "https://localhost:8082" {
+		t.Error("Incorrect URI obtained, expected https://localhost:8082")
+	}
+
+	// we treat root as a wildcard pattern
+	if uri := data.GetRedirectUri("localhost", "/something-not-there"); uri != "https://localhost:8082" {
+		t.Error("Incorrect URI obtained, expected https://localhost:8082")
+	}
+
+}
+
+func Test_MappingFileWithoutRoot(t *testing.T) {
+	data := MappingsFile{}
+	testFile := `---
+mapping:
+  localhost:
+    "/my-path": https://localhost:8081
+`
+
+	if err := yaml.Unmarshal([]byte(testFile), &data); err != nil {
+		t.Errorf("Could not parse test data: %v", err)
+	}
+
+	if err := data.Validate(); err != nil {
+		t.Errorf("Data was expected to be valid: %v", err)
+	}
+
+	if uri := data.GetRedirectUri("localhost", "/my-path"); uri != "https://localhost:8081" {
+		t.Error("Incorrect URI obtained, expected https://localhost:8081")
+	}
+
+	if uri := data.GetRedirectUri("localhost", "/"); uri != "" {
+		t.Error("Incorrect URI obtained, expected empty string since mapping doesn't specify a wildcard root '/'")
 	}
 }

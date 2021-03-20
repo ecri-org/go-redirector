@@ -9,77 +9,55 @@ import (
 	"net/url"
 )
 
-type Mapping struct {
-	Path string `yaml:"path"`
-	Redirect string `yaml:"redirect"`
+type Mapping map[string]string
+
+func (m Mapping) Get(entry string) (string) {
+	if value, ok := m[entry]; ok {
+		return value
+	}
+	return ""
 }
 
-/**
-  This validator is weak. I also did not want to do any redirect host lookups
-  as I expect some to be down. As such that should not fail the start of this
-  application.
-  This author chooses to enforce https redirects, even if the mapping says http,
-  telnet, or whatever protocol is used.
-  Sorry. See: https://www.eff.org/https-everywhere
- */
-func (m *Mapping) Validate() (*url.URL, error) {
-	defaultScheme := "https"
-	//fqUri := fmt.Sprintf("%s%s", defaultScheme, m.Path)
+func (m Mapping) Validate() error {
+	for path, redirectUri := range m {
+		if path == "" {
+			msg := fmt.Sprintf("Found empty string as path.")
+			log.Errorf(msg)
+			return errors.New(msg)
+		}
+		if path[0] != '/' {
+			msg := fmt.Sprintf("Redirect uri [%s] must always be prefixed with '/', no relative paths accepted here.", path)
+			log.Errorf(msg)
+			return errors.New(msg)
+		}
+		if _, err := url.ParseRequestURI(path); err != nil {
+			return err
+		}
 
-	if m.Path == "" {
-		msg := fmt.Sprintf("Redirect uri must not be empty. Use '/' if root is desired.")
-		log.Errorf(msg)
-		return nil, errors.New(msg)
+		uri, err := url.ParseRequestURI(redirectUri)
+		if err != nil {
+			log.Debugf("Redirect uri is not fully qualified.")
+			return err
+		}
+
+		if uri.Scheme != "https" {
+			msg := fmt.Sprintf("Redirect uri scheme on [%s] needs to be changed and use 'https' as the scheme.", uri.String())
+			return errors.New(msg)
+		}
+
+		log.Debugf("Parsed %s", uri.String())
 	}
 
-	if m.Path[0] != '/' {
-		msg := fmt.Sprintf("Redirect uri [%s] must always be prefixed with '/', no relative paths accepted here.", m.Path)
-		log.Errorf(msg)
-		return nil, errors.New(msg)
-	}
-
-	if _, err := url.ParseRequestURI(m.Path); err != nil {
-		return nil, err
-	}
-
-	uri, err := url.ParseRequestURI(m.Redirect)
-	if err != nil {
-		log.Debugf("Redirect uri is not fully qualified.")
-		return nil, err
-	}
-
-	if uri.Scheme != "https" {
-		msg := fmt.Sprintf("Redirect uri scheme on [%s] needs to change and use 'https' as the scheme.", uri.String())
-		return nil, errors.New(msg)
-	}
-
-	uri.Scheme = defaultScheme
-
-	log.Debugf("Parsed %s", uri.String())
-
-	return uri, nil
+	return nil
 }
 
-/**
-Factory
- */
-func NewMapping(path string, redirect string) *Mapping {
-	return &Mapping{path, redirect}
-}
-
-/**
-Since we only expect to read from this map, I'm satisified with a pointer
-receiver. If ever we need to sync, we should change this to a value receiver
-for maximum safety.
-NOTE: concurrent map write see above
- */
 type MappingsFile struct {
 	Mappings map[string]Mapping `yaml:"mapping,omitempty"`
 }
 
 func (m *MappingsFile) Validate() error {
 	for _, entry := range m.Mappings {
-		if _, err := entry.Validate(); err != nil {
+		if err :=entry.Validate(); err != nil {
 			return err
 		}
 	}
@@ -87,19 +65,22 @@ func (m *MappingsFile) Validate() error {
 	return nil
 }
 
-/**
-We take special care not to return a pointer for Mapping for
-maximum safety. This means if ever we expected to write it won't
-work until we change this, and also change the value reciever for
-Mapping type as well.
-NOTE: concurrent map write see above
- */
-func (m *MappingsFile) Get(key string) (Mapping, error) {
-	if value, ok := m.Mappings[key]; ok {
-		return value, nil
+func (m *MappingsFile) GetRedirectUri(host string, path string) string {
+	if mappingEntry, ok := m.Mappings[host]; ok {
+		// look for specific
+		if uri := mappingEntry.Get(path); uri != "" {
+			return uri
+		}
+
+		// look for root TODO: might be better to sort later
+		if uri := mappingEntry.Get("/"); uri != "" {
+			return uri
+		}
 	}
 
-	return Mapping{}, errors.New(fmt.Sprintf("Could not find key [%s]", key))
+	msg := fmt.Sprintf("Could not find host and path [%s%s]", host, path)
+	log.Debugf(msg)
+	return ""
 }
 
 /**
