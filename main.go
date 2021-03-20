@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"github.com/joho/godotenv"
 	"github.com/julienschmidt/httprouter"
@@ -15,12 +16,28 @@ import (
 	"strconv"
 	"strings"
 	tpltxt "text/template"
+
+	"go.opencensus.io/stats"
+	"go.opencensus.io/stats/view"
+	"go.opencensus.io/tag"
+	"contrib.go.opencensus.io/exporter/prometheus"
 )
 
 var (
 	BUILD_SHA     string
 	BUILD_VERSION string
 	BUILD_DATE    string
+
+	MRedirectCounts = stats.Int64("redirect/counts", "The distribution of redirects", "By")
+	KeyHost, _    = tag.NewKey("host")
+	KeyUri, _     = tag.NewKey("uri")
+	RedirectCountView = &view.View{
+		Name:        "redirect/counts",
+		Measure:     MRedirectCounts,
+		Description: "The number of redirects served",
+		Aggregation: view.Count(),
+		TagKeys:     []tag.Key{KeyHost, KeyUri},
+	}
 )
 
 // When using the templateHtml below, the hidden paragraph at the bottom is unique.
@@ -241,6 +258,7 @@ func NewTemplateData(redirectUri string) *TemplateData {
 type FastServer struct {
 	Config *Config
 	MappingFile *mapping.MappingsFile
+	PrometheusExporter *prometheus.Exporter
 }
 
 func (f *FastServer) RenderTemplate(data *TemplateData) (string, error) {
@@ -282,6 +300,12 @@ func (f *FastServer) mappingHandler(w http.ResponseWriter, r *http.Request) {
 		// No content, just hang up with a http code right now.
 		w.WriteHeader(http.StatusNotFound)
 	} else {
+		ctx, _ := tag.New(context.Background(), tag.Insert(KeyHost, host), tag.Insert(KeyUri, uri))
+
+		defer func() {
+			stats.Record(ctx, MRedirectCounts.M(1))
+		}()
+
 		log.Infof("Redirecting to [%s%s] from [%s] for remote client [%s] with user-agent: [%s]",
 			redirectUri, uri, host, r.RemoteAddr, r.Header.Get("User-Agent"),
 		)
@@ -303,6 +327,10 @@ func (f *FastServer) healthy(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (f *FastServer) metrics(w http.ResponseWriter, r *http.Request) {
+
+}
+
 func (f *FastServer) index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Add("Content-Type", "text/html")  // force
 
@@ -310,6 +338,9 @@ func (f *FastServer) index(w http.ResponseWriter, r *http.Request, _ httprouter.
 		if r.RequestURI == "/healthy" {
 			f.healthy(w, r)
 		}
+		//if r.RequestURI == "/metrics" {
+		//	f.PrometheusExporter
+		//}
 	}
 
 	processRequest := func() {
@@ -348,7 +379,16 @@ func (f *FastServer) Serve(port int) error {
 }
 
 func NewFastServer(config *Config, mappingFile *mapping.MappingsFile) *FastServer {
-	return &FastServer{config, mappingFile}
+	exporter, err := prometheus.NewExporter(prometheus.Options{
+		Namespace: "simple-redirector",
+	})
+
+	if err != nil {
+		log.Fatalf("Failed to create the Prometheus stats exporter: %v", err)
+		os.Exit(errors.EXIT_METRICS_ISSUE)
+	}
+
+	return &FastServer{config, mappingFile, exporter}
 }
 
 func Run(args []string) {
@@ -397,6 +437,11 @@ func Run(args []string) {
 
 				log.Infof("Loaded [%d] redirect mappings.", len(config.MappingsFile.Mappings))
 				log.Infof("Running server on port [%d].", config.Port)
+
+				if err := view.Register(RedirectCountView); err != nil {
+					log.Fatalf("Failed to register views: %v", err)
+				}
+
 				server := NewFastServer(config, config.MappingsFile)
 				return server.Serve(config.Port)
 			},
