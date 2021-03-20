@@ -3,21 +3,17 @@ module go-redirector
 go 1.16
 
 require (
-	contrib.go.opencensus.io/exporter/prometheus v0.3.0 // indirect
-	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15 // indirect
-	github.com/golang/protobuf v1.5.1 // indirect
-	github.com/joho/godotenv v1.3.0 // indirect
-	github.com/juju/errors v0.0.0-20200330140219-3fe23663418f // indirect
-	github.com/julienschmidt/httprouter v1.3.0 // indirect
-	github.com/prometheus/client_golang v1.10.0 // indirect
-	github.com/prometheus/common v0.19.0 // indirect
-	github.com/sirupsen/logrus v1.8.1 // indirect
-	github.com/urfave/cli v1.22.5 // indirect
-	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4 // indirect
+	github.com/gofiber/fiber/v2 v2.6.0
+	github.com/gofiber/template v1.6.7
+	github.com/joho/godotenv v1.3.0
+	github.com/juju/errors v0.0.0-20200330140219-3fe23663418f
+	github.com/juju/testing v0.0.0-20210302031854-2c7ee8570c07 // indirect
+	github.com/klauspost/compress v1.11.12 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/sirupsen/logrus v1.8.1
+	github.com/urfave/cli v1.22.5
+	github.com/valyala/fasthttp v1.22.0 // indirect
+	github.com/valyala/tcplisten v1.0.0 // indirect
 	golang.org/x/sys v0.0.0-20210319071255-635bc2c9138d // indirect
-	golang.org/x/text v0.3.5 // indirect
-	google.golang.org/genproto v0.0.0-20210319143718-93e7006c17a6 // indirect
-	google.golang.org/grpc v1.36.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0
 )
