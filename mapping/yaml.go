@@ -56,6 +56,9 @@ type MappingsFile struct {
 }
 
 func (m *MappingsFile) Validate() error {
+	if len(m.Mappings) == 0 {
+		return errors.New("Mapping file is empty or has no entries. Please provide some.")
+	}
 	for host, entry := range m.Mappings {
 		if host == "localhost" {
 			return errors.New("Localhost is reserved, you cannot use this host")
