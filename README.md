@@ -2,7 +2,65 @@
 
 go-redirector aka "PlanetVegeta"
 
+A reasonably fast (see perf data below) server that redirects.
+Can be run as a docker container, and comes in at ~13MB in size.
+
+
+## Example Usage
+
+1. Edit or supply (via bind mount) the map file: `redirect-map.yml` file.
+1. Use the supplied template or provide your own: `/views/html.tpl`
+1. Run the image
+
+By Default the app listens on 8080.
+
+
+### Examples
+
+TLS Is enabled by default but no certs are provided.
+Other flags which may be useful are:
+  - `--cert <file>` defaults to `./certs/server.pem`
+  - `--key <key>` defaults to `./certs/key.pem`
+  - `--port <port-number>` defaults to `8443` unless specified
+Below we bind the local directory containing `server.pem` and `server.key`.
+This will allow the server to run.
+```shell
+docker run -it --rm \
+  -p 8443:8443 \
+  -v ./certs:/certs \
+  go-redirector:0.1.0 \
+  /go-redirector run
+```
+
+To run in HTTP mode you must supply the `-http` flag.
+Other flags which may be useful are:
+- `-port <port-number>` defaults to `8080` in `http` mode unless specified
+```shell
+docker run -it --rm \
+  -p 8080:8080 \
+  -v ./certs:/certs \
+  go-redirector:0.1.0 \
+  /go-redirector run --http
+```
+
+Version
+```shell
+docker run -it --rm -p 8080:8080 go-redirector:0.1.0 /entrypoint --version
+```
+
+Help
+```shell
+docker run -it --rm -p 8080:8080 go-redirector:0.1.0 /entrypoint --help
+```
+
+Run Help
+```shell
+docker run -it --rm -p 8080:8080 go-redirector:0.1.0 /entrypoint run --help
+```
+
+
 ## Performance Data
+
 
 ### Fiber Implementation
 
@@ -79,7 +137,9 @@ Percentage of the requests served within a certain time (ms)
  100%     18 (longest request)
 ```
 
+
 ### Net/HTTP
+
 
 #### Performance Mode
 
@@ -149,6 +209,7 @@ Percentage of the requests served within a certain time (ms)
   99%      5
  100%     16 (longest request)
  ```
+
 
 #### Safe HTML Mode
 

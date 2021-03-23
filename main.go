@@ -44,34 +44,59 @@ var (
 )
 
 const (
-	LOG_LEVEL    = "LOG_LEVEL"
-	MAPPING_PATH = "MAPPING_PATH"
-	PORT         = "PORT"
+	LOG_LEVEL        = "LOG_LEVEL"
+	MAPPING_PATH     = "MAPPING_PATH"
+	PORT             = "PORT"
 	PERFORMANCE_MODE = "PERFORMANCE_MODE"
+	HTTP_MODE        = "HTTP_MODE"
+	SERVER_CERT      = "SERVER_CERT"
+	SERVER_KEY       = "SERVER_KEY"
 
 	DEFAULT_LOG_LEVEL = log.DebugLevel
 	DEFAULT_MAPPING_PATH = "./redirect-map.yml"
 	DEFAULT_PORT = 8080
+	DEFAULT_PORT_TLS = 8443
+	DEFAULT_SERVER_CERT = "./certs/server.pem"
+	DEFAULT_SERVER_KEY = "./certs/server.key"
 )
 
 type Config struct {
-	LogLevel     log.Level
-	MappingPath  string
-	templateFile string
-	Port         int
-	MappingsFile *mapping.MappingsFile
+	LogLevel        log.Level
+	MappingPath     string
+	templateFile    string
+	Port            int
+	MappingsFile    *mapping.MappingsFile
 	PerformanceMode bool
+	UseHttp         bool
+	ServerCert      string
+	ServerKey       string
 }
 
 func (c *Config) setPerformance(performanceMode bool) {
 	c.PerformanceMode = performanceMode
 	if performanceMode {
 		log.Info("Performance Mode Enabled")
+		c.setLogLevel("error")
+	}
+}
+
+func (c *Config) useHttp(useHttp bool, cert string, key string) {
+	c.UseHttp = useHttp
+	if !useHttp {
+		c.ServerCert = cert
+		c.ServerKey = key
+		log.Info("TLS Mode Enabled")
 	}
 }
 
 func (c *Config) setPort(port int) {
-	c.Port = port
+	if port == 0 && c.UseHttp { // use default tls port
+		c.Port = DEFAULT_PORT
+	} else if port == 0 && !c.UseHttp {
+		c.Port = DEFAULT_PORT_TLS
+	} else {
+		c.Port = port  // use what user specified
+	}
 }
 
 func (c *Config) setMappingFile(filePath string) {
@@ -240,6 +265,7 @@ func (f *FastServer) Serve(port int) error {
 		ServerHeader: "PlanetVegeta",
 		//ProxyHeader: "X-Forwarded-For",
 		GETOnly: true,
+		DisableStartupMessage: f.Config.PerformanceMode,  // only show banner during perf mode so we can see ps and pid IDs
 	})
 
 	server.Use(favicon.New())
@@ -249,24 +275,22 @@ func (f *FastServer) Serve(port int) error {
 	server.Get("/metrics", f.metrics)
 	server.Get("/*", f.index)
 
-	if err := server.Listen(fmt.Sprintf(":%d", port)); err != nil {
-		return err
+	if f.Config.UseHttp {
+		if err := server.Listen(fmt.Sprintf(":%d", port)); err != nil {
+			return err
+		}
+	} else {
+		if err := server.ListenTLS(fmt.Sprintf(":%d", port),
+			f.Config.ServerCert,
+			f.Config.ServerKey); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
 func NewFastServer(config *Config, mappingFile *mapping.MappingsFile) *FastServer {
-	//exporter, err := prometheus.NewExporter(prometheus.Options{
-	//	Namespace: "go-redirector",
-	//})
-
-	//if err != nil {
-	//	log.Fatalf("Failed to create the Prometheus stats exporter: %v", err)
-	//	os.Exit(errors.EXIT_METRICS_ISSUE)
-	//}
-
-	//return &FastServer{config, mappingFile, exporter}
 	return &FastServer{config, mappingFile}
 }
 
@@ -283,6 +307,11 @@ func Run(args []string) {
 					Value: DEFAULT_LOG_LEVEL.String(),
 					Usage: "Log level of the app `LOG_LEVEL`",
 				},
+				cli.BoolFlag{
+					Name:   "http",
+					EnvVar: HTTP_MODE,
+					Usage:  "runs in http mode rather than TLS, defaults to port 8080 unless you change it",
+				},
 				cli.StringFlag{
 					Name:  "file, f",
 					EnvVar: MAPPING_PATH,
@@ -292,13 +321,24 @@ func Run(args []string) {
 				cli.IntFlag{
 					Name:  "port, p",
 					EnvVar: PORT,
-					Value: DEFAULT_PORT,
 					Usage: fmt.Sprintf("port to listen on, defaults to %d", DEFAULT_PORT),
 				},
 				cli.BoolFlag{
 					Name:  "performance-mode",
 					EnvVar: PERFORMANCE_MODE,
-					Usage: "run using a faster templating system",
+					Usage: "overrides user supplied flags to allow better performance",
+				},
+				cli.StringFlag{
+					Name:  "cert",
+					EnvVar: SERVER_CERT,
+					Value: DEFAULT_SERVER_CERT,
+					Usage: "Server Cert to use when TLS mode is enabled",
+				},
+				cli.StringFlag{
+					Name:  "key",
+					EnvVar: SERVER_KEY,
+					Value: DEFAULT_SERVER_KEY,
+					Usage: "Server Key to use when TLS mode is enabled",
 				},
 			},
 			Action: func(c *cli.Context) error {
@@ -306,6 +346,7 @@ func Run(args []string) {
 				// Must set these first
 				config.setLogLevel(c.String("log-level"))
 				config.setPerformance(c.Bool("performance-mode"))
+				config.useHttp(c.Bool("http"), c.String("cert"), c.String("key"))
 
 				// config.SetTemplateFromFile(c.String("template"))
 				config.setMappingFile(c.String("file"))
