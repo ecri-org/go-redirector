@@ -1,10 +1,13 @@
-name: pipeline
+name: branch
 
-on: push
+on:
+  push:
+    tags-ignore:
+      - '**'
 
 jobs:
   branch:
-    name: Run pipeline
+    name: Test, Build Source, Build Image
     runs-on: ubuntu-latest
     env:
       IMAGE_NAME: go-redirector
@@ -42,5 +45,3 @@ jobs:
           context: .
           push: false
           tags: user/app:latest
-      - name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}
