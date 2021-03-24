@@ -1,13 +1,6 @@
 package main
 
 import (
-	//"context"
-	//"contrib.go.opencensus.io/exporter/prometheus"
-	//"go.opencensus.io/stats"
-	//"go.opencensus.io/stats/view"
-	//"go.opencensus.io/tag"
-
-	//"contrib.go.opencensus.io/exporter/prometheus"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
@@ -16,9 +9,6 @@ import (
 	"github.com/urfave/cli"
 	"go-redirector/errors"
 	"go-redirector/mapping"
-	//"go.opencensus.io/stats"
-	//"go.opencensus.io/stats/view"
-	//"go.opencensus.io/tag"
 	"os"
 	"strconv"
 	"strings"
@@ -30,17 +20,6 @@ var (
 	BUILD_SHA     string
 	BUILD_VERSION string
 	BUILD_DATE    string
-
-	//MRedirectCounts = stats.Int64("redirect/counts", "The distribution of redirects", "By")
-	//KeyHost, _    = tag.NewKey("host")
-	//KeyUri, _     = tag.NewKey("uri")
-	//RedirectCountView = &view.View{
-	//	Name:        "redirect/counts",
-	//	Measure:     MRedirectCounts,
-	//	Description: "The number of redirects served",
-	//	Aggregation: view.Count(),
-	//	TagKeys:     []tag.Key{KeyHost, KeyUri},
-	//}
 )
 
 const (
@@ -235,11 +214,6 @@ func (f *FastServer) index(c *fiber.Ctx) error {
 		// No content, just hang up with a http code right now.
 		return c.SendStatus(404)
 	} else {
-		//ctx, _ := tag.New(context.Background(), tag.Insert(KeyHost, host), tag.Insert(KeyUri, uri))
-
-		//defer func() {
-		//	stats.Record(ctx, MRedirectCounts.M(1))
-		//}()
 		log.Infof("Redirecting to [%s%s] from [%s://%s%s] for remote client [%s] with user-agent: [%s]",
 			redirectUri, uri, scheme, c.Hostname(), uri, remoteAddr, userAgent,
 		)
@@ -354,10 +328,6 @@ func Run(args []string) {
 
 				log.Infof("Loaded [%d] redirect mappings.", len(config.MappingsFile.Mappings))
 				log.Infof("Running server on port [%d].", config.Port)
-
-				//if err := view.Register(RedirectCountView); err != nil {
-				//	log.Fatalf("Failed to register views: %v", err)
-				//}
 
 				server := NewFastServer(config, config.MappingsFile)
 				return server.Serve(config.Port)

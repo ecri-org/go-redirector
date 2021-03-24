@@ -30,3 +30,4 @@ jobs:
               -o dist/linux/$IMAGE_NAME-linux-amd64 main.go
       - name: Show binary version info
         run: dist/linux/$IMAGE_NAME-linux-amd64 -version
+        
