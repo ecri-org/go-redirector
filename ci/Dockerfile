@@ -1,8 +1,6 @@
 FROM golang:alpine as base
 RUN adduser -D -u 1000 runner
 
-# FROM alpine
-# FROM golang:alpine
 FROM scratch
 COPY --from=base /etc/passwd /etc/passwd
 USER runner
