@@ -1,0 +1,33 @@
+name: pipeline
+
+on: push
+
+jobs:
+  branch:
+    name: Run pipeline
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: go-redirector
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '^1.16.1'
+      - name: Setup Vars
+        run: |
+          echo "BUILD_VERSION=$(cat .version)" >> $GITHUB_ENV
+          echo "BUILD_SHA=$(echo $GITHUB_SHA | cut -c1-8)" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date '+%Y.%m.%d-%T')" >> $GITHUB_ENV
+      - name: Run Test
+        run: go test ./...
+      - name: Compile
+        run: |
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
+              -ldflags="-s -w" \
+              -ldflags "-X main.BUILD_SHA=$BUILD_SHA \
+                        -X main.BUILD_VERSION=$BUILD_VERSION \
+                        -X main.BUILD_DATE=$BUILD_DATE" \
+              -o dist/linux/$IMAGE_NAME-linux-amd64 main.go
+      - name: Show binary version info
+        run: dist/linux/$IMAGE_NAME-linux-amd64 -version
+        
