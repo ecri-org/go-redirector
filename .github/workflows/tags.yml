@@ -1,0 +1,67 @@
+name: release
+
+on:
+  push:
+    tags:
+      - '**'
+
+jobs:
+  release:
+    name: Test, Build Source, Build & Push Image
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: go-redirector
+    steps:
+      - uses: actions/checkout@v2
+      - name: Docker meta
+        id: docker_meta
+        uses: crazy-max/ghaction-docker-meta@v1
+        with:
+          # list of Docker images to use as base name for tags
+          images: |
+            ghcr.io/ecri-org/go-redirector
+          # tag-sha: true
+          tag-latest: true
+          tag-semver: |
+            {{major}}.{{minor}}
+            {{major}}.{{minor}}.{{patch}}
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '^1.16.1'
+      - name: Setup Vars
+        run: |
+          echo "BUILD_VERSION=$(cat .version)" >> $GITHUB_ENV
+          echo "BUILD_SHA=$(echo $GITHUB_SHA | cut -c1-8)" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date '+%Y.%m.%d-%T')" >> $GITHUB_ENV
+      - name: Run Test
+        run: go test ./...
+      - name: Compile
+        run: |
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
+              -ldflags="-s -w" \
+              -ldflags "-X main.BUILD_SHA=$BUILD_SHA \
+                        -X main.BUILD_VERSION=$BUILD_VERSION \
+                        -X main.BUILD_DATE=$BUILD_DATE" \
+              -o dist/linux/$IMAGE_NAME-linux-amd64 main.go
+      - name: Show binary version info
+        run: dist/linux/$IMAGE_NAME-linux-amd64 -version
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v2
+        with:
+          file: ./ci/Dockerfile
+          context: .
+          push: true
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
