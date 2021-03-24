@@ -2,7 +2,11 @@
 
 go-redirector aka "PlanetVegeta"
 
-A reasonably fast (see perf data below) server that redirects.
+A reasonably fast (see perf data below) server that redirects users. It does this by offering a descriptive rendered html page with enough javascript which waits 15 seconds before redirecting the user to the correct URI.
+
+All aspects of the html can be edited.
+The server can contain multiple mapped entries of host:path -> destination.
+
 Can be run as a docker container, and comes in at ~13MB in size.
 
 
@@ -12,7 +16,7 @@ Can be run as a docker container, and comes in at ~13MB in size.
 1. Use the supplied template or provide your own: `/views/html.tpl`
 1. Run the image
 
-By Default the app listens on 8080.
+By default, this server starts in TLS mode, and listens on port 8443. You can change how the server operates with various flags. See the examples below on how.
 
 
 ### Examples

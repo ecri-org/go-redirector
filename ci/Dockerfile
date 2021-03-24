@@ -8,7 +8,7 @@ COPY --from=base /etc/passwd /etc/passwd
 USER runner
 
 # Copy app
-COPY go-redirector-linux-amd64 /go-redirector
+COPY dist/linux/go-redirector-linux-amd64 /go-redirector
 COPY views /views
 COPY redirect-map.yml /
 
