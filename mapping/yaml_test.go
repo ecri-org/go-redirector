@@ -8,9 +8,9 @@ import (
 
 /**
 These patterns will not pass validation.
- */
-var badMappings = []struct{
-	path string
+*/
+var badMappings = []struct {
+	path     string
 	redirect string
 }{
 	{
@@ -19,27 +19,27 @@ var badMappings = []struct{
 	},
 	{
 		"pathA",
-		"://127.0.0.1",  // no scheme
+		"://127.0.0.1", // no scheme
 	},
 	{
-		"pathA",  // path has no slash prefix
+		"pathA", // path has no slash prefix
 		"https://127.0.0.1",
 	},
 	{
 		"/pathA",
-		"http://127.0.0.1",  // we only accept https, sorry
+		"http://127.0.0.1", // we only accept https, sorry
 	},
 	{
 		"/pathA",
-		"ftp://127.0.0.1",  // we only accept https, sorry
+		"ftp://127.0.0.1", // we only accept https, sorry
 	},
 	{
 		"/pathA",
-		"ftp//127.0.0.1",  // bad URI
+		"ftp//127.0.0.1", // bad URI
 	},
 	{
 		"/pathA",
-		"ftp//127.0.0./?",  // bad path
+		"ftp//127.0.0./?", // bad path
 	},
 }
 
@@ -81,14 +81,14 @@ func Test_badMappings(t *testing.T) {
 
 /**
 Here we test access to the mappings map. We also enforce that it is a map if anyone changes it.
- */
+*/
 func Test_MappingsMap(t *testing.T) {
 	expectedKey := "test"
 
 	redirectMap := MappingsFile{
 		Mappings: map[string]Mapping{
 			expectedKey: {
-				"/mypath": "https://127.0.0.1",
+				"/mypath":  "https://127.0.0.1",
 				"/mypath2": "https://127.0.0.1",
 			},
 		},
@@ -190,7 +190,7 @@ mapping:
 /**
 Rely on the tests above to test the mapping. Here we test for files that exist, or those
 that cannot be loaded via `yaml.Unmarshal()`.
- */
+*/
 func Test_LoadMappingFile(t *testing.T) {
 	testFile := "../tests/test-redirect-map.yml"
 	missingFile := "../tests/noop.yml"

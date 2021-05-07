@@ -60,7 +60,7 @@ func Test_ExitConfigMapping(t *testing.T) {
 	exitReached := false
 
 	config := NewConfig()
-	config.exitFunc = func(code int){
+	config.exitFunc = func(code int) {
 		if code != errors.EXIT_CODE_BAD_MAPPING_FILE {
 			t.Errorf("Expected exit code of [%v], got [%v]", errors.EXIT_CODE_BAD_MAPPING_FILE, code)
 		}
@@ -76,7 +76,7 @@ func Test_ExitConfigMapping(t *testing.T) {
 func Test_ConfigMapping(t *testing.T) {
 	goodFile := "./tests/test-redirect-map.yml"
 	config := NewConfig()
-	config.exitFunc = func(code int){
+	config.exitFunc = func(code int) {
 		t.Errorf("Did not Expected to see an exception and have the app exit on attempting to load a good config.")
 	}
 	config.setMappingFile(goodFile)
@@ -87,7 +87,7 @@ func Test_ConfigLogLevel(t *testing.T) {
 	config := NewConfig()
 
 	// First lets test expected values
-	config.exitFunc = func(code int){
+	config.exitFunc = func(code int) {
 		t.Errorf("Did not Expected to see an exception, please see logs and test.")
 	}
 	config.setLogLevel(debug)
@@ -112,7 +112,7 @@ func Test_ConfigLogLevel(t *testing.T) {
 func Test_SetPort(t *testing.T) {
 	config := NewConfig()
 
-	config.exitFunc = func(code int){
+	config.exitFunc = func(code int) {
 		t.Errorf("Did not Expected to see an exception and have the app exit on attempting to load a good config.")
 	}
 
@@ -120,7 +120,6 @@ func Test_SetPort(t *testing.T) {
 	config.SetPort("8080")
 	config.SetPort("443")
 	config.SetPort("8443")
-
 
 	config.exitFunc = func(code int) {
 		if code != errors.EXIT_CODE_BAD_PORT {
@@ -241,7 +240,7 @@ func Test_FastServerRoutes(t *testing.T) {
 
 /**
 Test routes not found and specifically favicon which we return as 404.
- */
+*/
 func Test_FastServerNotFoundRoutes(t *testing.T) {
 	testFile := "./tests/test-redirect-map.yml"
 
@@ -278,7 +277,7 @@ func Test_FastServerNotFoundRoutes(t *testing.T) {
 
 /**
 These routes are set in the test mapping file.
- */
+*/
 func Test_FastServerMappedRoute(t *testing.T) {
 	testFile := "./tests/test-redirect-map.yml"
 

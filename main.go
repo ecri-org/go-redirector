@@ -31,15 +31,15 @@ const (
 	SERVER_CERT      = "SERVER_CERT"
 	SERVER_KEY       = "SERVER_KEY"
 
-	DEFAULT_LOG_LEVEL = log.DebugLevel
+	DEFAULT_LOG_LEVEL    = log.DebugLevel
 	DEFAULT_MAPPING_PATH = "./redirect-map.yml"
-	DEFAULT_PORT = 8080
-	DEFAULT_PORT_TLS = 8443
-	DEFAULT_SERVER_CERT = "./certs/server.pem"
-	DEFAULT_SERVER_KEY = "./certs/server.key"
+	DEFAULT_PORT         = 8080
+	DEFAULT_PORT_TLS     = 8443
+	DEFAULT_SERVER_CERT  = "./certs/server.pem"
+	DEFAULT_SERVER_KEY   = "./certs/server.key"
 )
 
-type ExitFunc func (code int)
+type ExitFunc func(code int)
 
 type Config struct {
 	LogLevel        log.Level
@@ -77,13 +77,13 @@ func (c *Config) setPort(port int) {
 	} else if port == 0 && !c.UseHttp {
 		c.Port = DEFAULT_PORT_TLS
 	} else {
-		c.Port = port  // use what user specified
+		c.Port = port // use what user specified
 	}
 }
 
 func (c *Config) setMappingFile(filePath string) {
 	if filePath != "" {
-		c.MappingPath = filePath  // change it
+		c.MappingPath = filePath // change it
 	}
 
 	// use the mapping file
@@ -122,7 +122,6 @@ func setMappingPath() string {
 	}
 }
 
-
 func goExit(code int) {
 	os.Exit(code)
 }
@@ -132,8 +131,8 @@ func NewConfig() *Config {
 
 	return &Config{
 		MappingPath: mappingPath,
-		Port: DEFAULT_PORT,
-		exitFunc: goExit,
+		Port:        DEFAULT_PORT,
+		exitFunc:    goExit,
 	}
 }
 
@@ -153,7 +152,7 @@ func LoadEnvPaths(local string, home string) *Config {
 		return false
 	}
 
-	if !loadEnv(home) {  // load from home
+	if !loadEnv(home) { // load from home
 		loadEnv(local) // load local, else move on
 	}
 
@@ -175,9 +174,9 @@ func NewTemplateData(redirectUri string) *TemplateData {
 }
 
 type FastServer struct {
-	Config *Config
+	Config      *Config
 	MappingFile *mapping.MappingsFile
-	server *fiber.App
+	server      *fiber.App
 	//PrometheusExporter *prometheus.Exporter
 }
 
@@ -185,7 +184,7 @@ type FastServer struct {
 Respond to health only if host is localhost. Simple guard.
 Rely on metrics in future for stats.
 Systems deploying (docker, k8) can craft headers with localhost in probes.
- */
+*/
 func (f *FastServer) healthy(c *fiber.Ctx) error {
 	if f.parseHost(c.Hostname()) == "localhost" {
 		return c.SendStatus(200)
@@ -250,7 +249,7 @@ func (f *FastServer) parseHost(host string) string {
 
 /**
 Bootstrap routes
- */
+*/
 func (f *FastServer) setup() *fiber.App {
 	engine := html.New("./views", ".tpl") // golang template
 	server := fiber.New(fiber.Config{
@@ -258,8 +257,8 @@ func (f *FastServer) setup() *fiber.App {
 		//Prefork: true,  // not right now ...
 		ServerHeader: "PlanetVegeta",
 		//ProxyHeader: "X-Forwarded-For",
-		GETOnly: true,
-		DisableStartupMessage: f.Config.PerformanceMode,  // only show banner during perf mode so we can see ps and pid IDs
+		GETOnly:               true,
+		DisableStartupMessage: f.Config.PerformanceMode, // only show banner during perf mode so we can see ps and pid IDs
 	})
 
 	server.Use(favicon.New())
@@ -302,10 +301,10 @@ func Run(args []string) {
 			Usage:   "run go-redirector",
 			Flags: []cli.Flag{
 				cli.StringFlag{
-					Name:  "log-level, l",
+					Name:   "log-level, l",
 					EnvVar: LOG_LEVEL,
-					Value: DEFAULT_LOG_LEVEL.String(),
-					Usage: "Log level of the app `LOG_LEVEL`",
+					Value:  DEFAULT_LOG_LEVEL.String(),
+					Usage:  "Log level of the app `LOG_LEVEL`",
 				},
 				cli.BoolFlag{
 					Name:   "http",
@@ -313,36 +312,36 @@ func Run(args []string) {
 					Usage:  "runs in http mode rather than TLS, defaults to port 8080 unless you change it",
 				},
 				cli.StringFlag{
-					Name:  "file, f",
+					Name:   "file, f",
 					EnvVar: MAPPING_PATH,
-					Value: DEFAULT_MAPPING_PATH,
-					Usage: "Use the mapping file specified",
+					Value:  DEFAULT_MAPPING_PATH,
+					Usage:  "Use the mapping file specified",
 				},
 				cli.IntFlag{
-					Name:  "port, p",
+					Name:   "port, p",
 					EnvVar: PORT,
-					Usage: fmt.Sprintf("port to listen on, defaults to %d", DEFAULT_PORT),
+					Usage:  fmt.Sprintf("port to listen on, defaults to %d", DEFAULT_PORT),
 				},
 				cli.BoolFlag{
-					Name:  "performance-mode",
+					Name:   "performance-mode",
 					EnvVar: PERFORMANCE_MODE,
-					Usage: "overrides user supplied flags to allow better performance",
+					Usage:  "overrides user supplied flags to allow better performance",
 				},
 				cli.StringFlag{
-					Name:  "cert",
+					Name:   "cert",
 					EnvVar: SERVER_CERT,
-					Value: DEFAULT_SERVER_CERT,
-					Usage: "Server Cert to use when TLS mode is enabled",
+					Value:  DEFAULT_SERVER_CERT,
+					Usage:  "Server Cert to use when TLS mode is enabled",
 				},
 				cli.StringFlag{
-					Name:  "key",
+					Name:   "key",
 					EnvVar: SERVER_KEY,
-					Value: DEFAULT_SERVER_KEY,
-					Usage: "Server Key to use when TLS mode is enabled",
+					Value:  DEFAULT_SERVER_KEY,
+					Usage:  "Server Key to use when TLS mode is enabled",
 				},
 			},
 			Action: func(c *cli.Context) error {
-				config := LoadEnv()  // we load env variable settings first, commandline params may override
+				config := LoadEnv() // we load env variable settings first, commandline params may override
 				// Must set these first
 				config.setLogLevel(c.String("log-level"))
 				config.setPerformance(c.Bool("performance-mode"))

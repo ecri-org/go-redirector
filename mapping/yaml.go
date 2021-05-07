@@ -95,11 +95,11 @@ func (m *MappingsFile) GetRedirectUri(host string, path string) string {
 
 /**
 Parse the mapping file.
- */
+*/
 func Parse(data []byte) (*MappingsFile, error) {
 	mappingFile := NewMappingsFile()
 
-	if err := yaml.Unmarshal([]byte(data), mappingFile); err !=nil {
+	if err := yaml.Unmarshal([]byte(data), mappingFile); err != nil {
 		return mappingFile, err
 	}
 
@@ -112,7 +112,7 @@ func Parse(data []byte) (*MappingsFile, error) {
 
 /**
 Load a file, assuming it is a redirect map file.
- */
+*/
 func LoadMappingFile(file string) (*MappingsFile, error) {
 	if data, err := ioutil.ReadFile(file); err != nil {
 		msg := fmt.Sprintf("Could not find file: %s", file)
