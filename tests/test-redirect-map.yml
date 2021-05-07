@@ -1,0 +1,5 @@
+---
+mapping:
+  testhost:
+    "/my-path": https://localhost:8081
+    "/": https://localhost:8082

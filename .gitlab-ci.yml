@@ -1,0 +1,168 @@
+stages:
+  - build
+  - release
+
+# ==========================
+# Scripts
+# ==========================
+
+.common-tag-script: &common-tag-script |-
+  bash ./tagit.sh
+
+.common-artifacts: &common-artifacts
+  artifacts:
+    name: "$CI_JOB_STAGE-$CI_COMMIT_REF_NAME"
+    expire_in: 1 day
+    paths:
+      - dist/
+      - coverage.out
+
+.common-vars: &common-vars
+  DOCKER_OPTS: "--default-ulimit nofile=10240 --mtu=1300 --experimental"
+  IMAGE_NAME: "go-redirector"
+  IMAGE_VERSION: "snapshot"
+
+.setup-script: &setup-script |-
+  export IMAGE_VERSION="$(cat .version)"
+  export BUILD_DATE="$(date "+%Y.%m.%d-%T")"
+  export BUILD_SHA="$(echo $CI_COMMIT_SHA | cut -c1-8)"
+  export BUILD_VERSION="$(cat ./.version)"
+
+  mkdir -p $GOPATH/src
+  ln -s $CI_PROJECT_DIR $GOPATH/src/oc-manage
+  cd $GOPATH/src/oc-manage
+
+.docker-build-script: &docker-build-script |-
+  docker build --no-cache --rm -f ./ci/Dockerfile -t $IMAGE_NAME:$IMAGE_VERSION .
+
+.info-script: &info-script |-
+  go env
+  go list -m all
+
+.test-script: &test-script |-
+  go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out
+
+.compile-script: &compile-script |-
+  echo "$BUILD_DATE"
+  echo "$BUILD_SHA"
+  echo "$BUILD_VERSION"
+
+  # Build Linux Flags
+  ## -ldflags="-s -w" \  # debug
+  ## CGO_ENABLED=1
+  GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
+    -ldflags="-s -w" \
+    -ldflags "-X main.BUILD_SHA=${BUILD_SHA} \
+              -X main.BUILD_VERSION=${BUILD_VERSION} \
+              -X main.BUILD_DATE=${BUILD_DATE}" \
+    -v -x -o dist/linux/$IMAGE_NAME-linux-amd64 main.go
+
+  # Disabled for now
+  # Build Darwin Flags
+  ## -ldflags="-s -w" \  # debug
+  ## CGO_ENABLED=1
+  # GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build \
+  #   -ldflags="-s -w" \
+  #   -ldflags "-X main.BUILD_SHA=${BUILD_SHA} \
+  #             -X main.BUILD_VERSION=${BUILD_VERSION} \
+  #             -X main.BUILD_DATE=${BUILD_DATE}" \
+  #   -v -x -o dist/darwin/$IMAGE_NAME-darwin-amd64 main.go
+  #
+  # # Test version info on Linux only
+  # echo
+  # echo "--------------------------------------------
+  # echo
+  # dist/linux/$IMAGE_NAME-linux-amd64 -version
+
+.standard-build: &standard-build
+  # image: golang:1.16-stretch  # 822MB !
+  # golang:alpine # 300MB
+  image: golang:alpine
+  before_script:
+    - *setup-script
+  script:
+    - *info-script
+    - *test-script
+    - *compile-script
+  retry: 2
+
+# ==========================
+# Build
+# ==========================
+
+branch:
+  <<: *standard-build
+  stage: build
+  except:
+    refs:
+      - main
+      - tags
+
+main:
+  <<: *standard-build
+  <<: *common-artifacts
+  stage: build
+  only:
+    refs:
+      - main
+  variables:
+    <<: *common-vars
+
+build:image:
+  image: nexus.ecri.org/dev/gitlab-ci-base:3.11.7
+  services:
+    - nexus.ecri.org/dev/dind:2.0.0
+  dependencies:
+    - main
+  variables:
+    <<: *common-vars
+  Script:
+    - *docker-build-script
+  retry: 2
+
+# ==========================
+# Local
+# ==========================
+
+local:
+  stage: build
+  # image: golang:1.16-stretch  # 822MB !
+  # golang:alpine # 300MB
+  image: golang:alpine
+  only:
+    refs:
+      - local
+  variables:
+    <<: *common-vars
+    DO_TAG: "false"
+  before_script:
+    - *setup-script
+  script:
+    # - *common-tag-script
+    - *info-script
+    - *test-script
+    - *compile-script
+    - |
+      if [ ! -e /tmp/local-build-cache/$IMAGE_NAME/ ]; then
+        mkdir -vp /tmp/local-build-cache/$IMAGE_NAME/
+      fi;
+    - cp dist/linux/$IMAGE_NAME-*-amd64 /tmp/local-build-cache/$IMAGE_NAME/
+    # - cp dist/darwin/$IMAGE_NAME-*-amd64 /tmp/local-build-cache
+
+local:image:
+  stage: build
+  image: nexus.ecri.org/dev/gitlab-ci-base:3.11.7
+  services:
+    - nexus.ecri.org/dev/dind:2.0.0
+  only:
+    refs:
+      - local
+  variables:
+    <<: *common-vars
+  script:
+    - |
+      if [ ! -e dist/linux ]; then
+        mkdir -vp dist/linux
+      fi;
+    - cp /tmp/local-build-cache/$IMAGE_NAME/$IMAGE_NAME-*-amd64 dist/linux/
+    - *docker-build-script
