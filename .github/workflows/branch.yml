@@ -20,9 +20,9 @@ jobs:
           go-version: '^1.16.1'
       - name: Setup Vars
         run: |
-          echo "BUILD_VERSION=$(cat .version)" >> $GITHUB_ENV
-          echo "BUILD_SHA=$(echo $GITHUB_SHA | cut -c1-8)" >> $GITHUB_ENV
-          echo "BUILD_DATE=$(date '+%Y.%m.%d-%T')" >> $GITHUB_ENV
+          echo "BuildVersion=$(cat .version)" >> $GITHUB_ENV
+          echo "BuildSha=$(echo $GITHUB_SHA | cut -c1-8)" >> $GITHUB_ENV
+          echo "BuildDate=$(date '+%Y.%m.%d-%T')" >> $GITHUB_ENV
       - name: Calc coverage
         run: |
           go test -v -covermode=count -coverprofile=coverage.out
@@ -37,9 +37,9 @@ jobs:
         run: |
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
               -ldflags="-s -w" \
-              -ldflags "-X main.BUILD_SHA=$BUILD_SHA \
-                        -X main.BUILD_VERSION=$BUILD_VERSION \
-                        -X main.BUILD_DATE=$BUILD_DATE" \
+              -ldflags "-X main.BuildSha=BuildSha \
+                        -X main.BuildVersion=BuildVersion \
+                        -X main.BuildDate=BuildDate" \
               -o dist/linux/$IMAGE_NAME-linux-amd64 main.go
       - name: Show binary version info
         run: dist/linux/$IMAGE_NAME-linux-amd64 -version

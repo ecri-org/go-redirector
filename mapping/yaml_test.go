@@ -94,13 +94,13 @@ func Test_MappingsMap(t *testing.T) {
 		},
 	}
 
-	// GetRedirectUri something we know exists
-	if value := redirectMap.GetRedirectUri(expectedKey, "/mypath"); value == "" {
+	// GetRedirectURI something we know exists
+	if value := redirectMap.GetRedirectURI(expectedKey, "/mypath"); value == "" {
 		t.Errorf("Expected a mapping")
 	}
 
-	// GetRedirectUri a key that does not exist
-	if value := redirectMap.GetRedirectUri("n/a", ""); value != "" {
+	// GetRedirectURI a key that does not exist
+	if value := redirectMap.GetRedirectURI("n/a", ""); value != "" {
 		t.Errorf("Expected to get an error for a search of key[%s]", "n/a")
 	}
 }
@@ -149,16 +149,16 @@ mapping:
 		t.Errorf("Data was expected to be valid: %v", err)
 	} else {
 
-		if uri := data.GetRedirectUri("testhost", "/my-path"); uri != "https://localhost:8081" {
+		if uri := data.GetRedirectURI("testhost", "/my-path"); uri != "https://localhost:8081" {
 			t.Errorf("Incorrect URI obtained, expected https://localhost:8081, got [%s]", uri)
 		}
 
-		if uri := data.GetRedirectUri("testhost", "/"); uri != "https://localhost:8082" {
+		if uri := data.GetRedirectURI("testhost", "/"); uri != "https://localhost:8082" {
 			t.Errorf("Incorrect URI obtained, expected https://localhost:8082, got [%s]", uri)
 		}
 
 		// we treat root as a wildcard pattern
-		if uri := data.GetRedirectUri("testhost", "/something-not-there"); uri != "https://localhost:8082" {
+		if uri := data.GetRedirectURI("testhost", "/something-not-there"); uri != "https://localhost:8082" {
 			t.Errorf("Incorrect URI obtained, expected https://localhost:8082, got [%s]", uri)
 		}
 	}
@@ -177,11 +177,11 @@ mapping:
 			t.Errorf("Data was expected to be valid: %v", err)
 		}
 
-		if uri := data.GetRedirectUri("testhost", "/my-path"); uri != "https://localhost:8081" {
+		if uri := data.GetRedirectURI("testhost", "/my-path"); uri != "https://localhost:8081" {
 			t.Error("Incorrect URI obtained, expected https://localhost:8081")
 		}
 
-		if uri := data.GetRedirectUri("testhost", "/"); uri != "" {
+		if uri := data.GetRedirectURI("testhost", "/"); uri != "" {
 			t.Error("Incorrect URI obtained, expected empty string since mapping doesn't specify a wildcard root '/'")
 		}
 	}
