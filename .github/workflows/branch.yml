@@ -2,6 +2,8 @@ name: branch
 
 on:
   push:
+    branches:
+      - '*'
     tags-ignore:
       - '**'
 
