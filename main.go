@@ -27,6 +27,8 @@ var (
 )
 
 const (
+	// DefaultAppName will be used as the app name
+	DefaultAppName = "go-redirector"
 	// LogLevel is the env var name to use
 	LogLevel = "LOG_LEVEL"
 	// MappingPath is the env var name to use
@@ -297,8 +299,9 @@ func (f *FastServer) setup() *fiber.App {
 }
 
 // Serve will serve the FastServer on the user defined `port`.
-func (f *FastServer) Serve(port int) error {
+func (f *FastServer) Serve() error {
 	server := f.setup()
+	port := f.Config.Port
 
 	if f.Config.UseHTTP {
 		if err := server.Listen(fmt.Sprintf(":%d", port)); err != nil {
@@ -320,9 +323,27 @@ func NewFastServer(config *Config, mappingFile *mapping.MappingsFile) *FastServe
 	return &FastServer{config, mappingFile, fiber.New()}
 }
 
-// Run is the function which should be called by main to start the entire app
-func Run(args []string) {
-	var AppCommands = []cli.Command{
+func createServer(c *cli.Context) *FastServer {
+	config := LoadEnv() // we load env variable settings first, commandline params may override
+	// Must set these first
+	config.setLogLevel(c.String("log-level"))
+	config.setPerformance(c.Bool("performance-mode"))
+	config.setHTTP(c.Bool("http"), c.String("cert"), c.String("key"))
+
+	// config.SetTemplateFromFile(c.String("template"))
+	config.setMappingFile(c.String("file"))
+	config.setPort(c.Int("port"))
+
+	log.Infof("Loaded [%d] redirect mappings.", len(config.MappingsFile.Mappings))
+	log.Infof("Running server on port [%d].", config.Port)
+
+	server := NewFastServer(config, config.MappingsFile)
+
+	return server
+}
+
+func getAppCommands() []cli.Command {
+	var commands = []cli.Command{
 		{
 			Name:    "run",
 			Aliases: []string{"r"},
@@ -369,31 +390,29 @@ func Run(args []string) {
 				},
 			},
 			Action: func(c *cli.Context) error {
-				config := LoadEnv() // we load env variable settings first, commandline params may override
-				// Must set these first
-				config.setLogLevel(c.String("log-level"))
-				config.setPerformance(c.Bool("performance-mode"))
-				config.setHTTP(c.Bool("http"), c.String("cert"), c.String("key"))
-
-				// config.SetTemplateFromFile(c.String("template"))
-				config.setMappingFile(c.String("file"))
-				config.setPort(c.Int("port"))
-
-				log.Infof("Loaded [%d] redirect mappings.", len(config.MappingsFile.Mappings))
-				log.Infof("Running server on port [%d].", config.Port)
-
-				server := NewFastServer(config, config.MappingsFile)
-				return server.Serve(config.Port)
+				server := createServer(c)
+				return server.Serve()
 			},
 		},
 	}
 
+	return commands
+}
+
+func newApp(appCommands []cli.Command) *cli.App {
 	app := cli.NewApp()
-	app.Name = "go-redirector"
-	app.Usage = "go-redirector"
-	app.Commands = AppCommands
+	app.Name = DefaultAppName
+	app.Usage = DefaultAppName
+	app.Commands = appCommands
 	app.Version = fmt.Sprintf("info\n version: %s\n commit: %s\n built: %s",
 		BuildVersion, BuildSha, BuildDate)
+	return app
+}
+
+// Run is the function which should be called by main to start the entire app
+func Run(args []string) {
+	appCommands := getAppCommands()
+	app := newApp(appCommands)
 
 	// Bail if any errors
 	err := app.Run(args)

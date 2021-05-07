@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"github.com/urfave/cli"
 	"go-redirector/errors"
 	"net/http/httptest"
 	"os"
@@ -137,7 +139,10 @@ func Test_SetMappingPath(t *testing.T) {
 		t.Errorf("Expected function to return [%v]", DefaultMappingPath)
 	}
 
-	os.Setenv("MAPPING_PATH", goodTestFile)
+	if err := os.Setenv("MAPPING_PATH", goodTestFile); err != nil {
+		t.Errorf("Test harness could not set env var MAPPING_PATH=%s", goodTestFile)
+	}
+
 	if path := setMappingPath(); path != goodTestFile {
 		t.Errorf("Expected function to return [%v]", goodTestFile)
 	}
@@ -168,7 +173,9 @@ func Test_LoadEnvPaths(t *testing.T) {
 		} else if value != expected {
 			t.Errorf("Expected env [%s] var read as [%s], instead it was [%s]", testKey, expected, value)
 		}
-		os.Unsetenv(testKey)
+		if err := os.Unsetenv(testKey); err != nil {
+			t.Errorf("Test harness could not unset env var %s", testKey)
+		}
 	}
 
 	// load local
@@ -182,7 +189,10 @@ func Test_LoadEnvPaths(t *testing.T) {
 		} else if value != expected {
 			t.Errorf("Expected env [%s] var read as [%s], instead it was [%s]", testKey, expected, value)
 		}
-		os.Unsetenv(testKey)
+
+		if err := os.Unsetenv(testKey); err != nil {
+			t.Errorf("Test harness could not unset env var %s", testKey)
+		}
 	}
 
 	//config = LoadEnvPaths(badFile, badFile)
@@ -299,5 +309,74 @@ func Test_FastServerMappedRoute(t *testing.T) {
 		if resp.StatusCode != expectedStatusCode {
 			t.Errorf("expected [%d], got [%d]", expectedStatusCode, resp.StatusCode)
 		}
+	}
+}
+
+func Test_CreateServer(t *testing.T) {
+	// Bare minimum required
+	fl := cli.StringFlag{
+		Name:  "log-level, l",
+		Value: DefaultLogLevel.String(),
+		Usage: "Log level of the app `LOG_LEVEL`",
+	}
+	flagSet := flag.NewFlagSet("test", 0)
+	fl.Apply(flagSet)
+
+	app := cli.NewApp()
+	context := cli.NewContext(app, flagSet, nil)
+	if context == nil {
+		t.Errorf("bad")
+	}
+
+	server := createServer(context)
+	if server == nil {
+		t.Errorf("bad")
+	}
+}
+
+func Test_GetAppCommands(t *testing.T) {
+	commands := getAppCommands()
+	flags := commands[0].Flags
+
+	// carefully match theese from the flags in `main.go`
+	expectedFlags := []string{
+		"log-level, l",
+		"http",
+		"file, f",
+		"port, p",
+		"performance-mode",
+		"cert",
+		"key",
+	}
+
+	if len(flags) != len(expectedFlags) {
+		t.Errorf("getAppCommands generates %d flags, expectedFlags should match it, len was %d", len(flags), len(expectedFlags))
+	}
+
+	found := 0
+	for _, flag := range flags {
+		for _, e := range expectedFlags {
+			flagName := flag.GetName()
+			if e == flagName {
+				found = found + 1
+			}
+		}
+	}
+
+	if found != len(expectedFlags) {
+		t.Errorf("getAppCommands generates %d flags, instead based on expectedFlags only found %d", found, len(expectedFlags))
+	}
+}
+
+func Test_NewApp(t *testing.T) {
+	commands := getAppCommands()
+	app := newApp(commands)
+
+	if app.Name != DefaultAppName {
+		t.Errorf("Expected to see the default app name as %s, but found %s", DefaultAppName, app.Name)
+	}
+
+	if app.Usage != DefaultAppName {
+		t.Errorf("Expected to see the default app usage as %s, but found %s", DefaultAppName, app.Name)
 	}
 }
