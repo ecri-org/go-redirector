@@ -137,7 +137,10 @@ func Test_SetMappingPath(t *testing.T) {
 		t.Errorf("Expected function to return [%v]", DefaultMappingPath)
 	}
 
-	os.Setenv("MAPPING_PATH", goodTestFile)
+	if err := os.Setenv("MAPPING_PATH", goodTestFile); err != nil {
+		t.Errorf("Test harness could not set env var MAPPING_PATH=%s", goodTestFile)
+	}
+
 	if path := setMappingPath(); path != goodTestFile {
 		t.Errorf("Expected function to return [%v]", goodTestFile)
 	}
@@ -168,7 +171,9 @@ func Test_LoadEnvPaths(t *testing.T) {
 		} else if value != expected {
 			t.Errorf("Expected env [%s] var read as [%s], instead it was [%s]", testKey, expected, value)
 		}
-		os.Unsetenv(testKey)
+		if err := os.Unsetenv(testKey); err != nil {
+			t.Errorf("Test harness could not unset env var %s", testKey)
+		}
 	}
 
 	// load local
@@ -182,7 +187,10 @@ func Test_LoadEnvPaths(t *testing.T) {
 		} else if value != expected {
 			t.Errorf("Expected env [%s] var read as [%s], instead it was [%s]", testKey, expected, value)
 		}
-		os.Unsetenv(testKey)
+
+		if err := os.Unsetenv(testKey); err != nil {
+			t.Errorf("Test harness could not unset env var %s", testKey)
+		}
 	}
 
 	//config = LoadEnvPaths(badFile, badFile)
