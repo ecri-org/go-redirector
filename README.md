@@ -1,5 +1,10 @@
 # README
 
+[![Build Status](https://github.com/ecri-org/go-redirector/workflows/branch/badge.svg)](https://github.com/ecri-org/go-redirector/actions?workflow=branch)
+[![Coverage Status](https://coveralls.io/repos/github/ecri-org/go-redirector/badge.svg?branch=main)](https://coveralls.io/github/ecri-org/go-redirector?branch=main)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ecri-org/go-redirector)](https://goreportcard.com/report/github.com/ecri-org/go-redirector)
+
+
 go-redirector aka "PlanetVegeta"
 
 A reasonably fast (see perf data below) server that redirects users. It does this by offering a descriptive rendered html page with enough javascript which waits 15 seconds before redirecting the user to the correct URI.
@@ -7,8 +12,16 @@ A reasonably fast (see perf data below) server that redirects users. It does thi
 All aspects of the html can be edited.
 The server can contain multiple mapped entries of host:path -> destination.
 
-Can be run as a docker container, and comes in at ~13MB in size.
+Can be run as a docker container, and comes in at ~ 13MB in size.
 
+
+## Devs
+
+```shell
+go fmt ./...
+golint ./...
+golangci-lint run ./...
+```
 
 ## Example Usage
 

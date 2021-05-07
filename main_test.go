@@ -1,39 +1,40 @@
 package main
 
 import (
-	"github.com/sirupsen/logrus"
 	"go-redirector/errors"
 	"net/http/httptest"
 	"os"
 	"testing"
+
+	"github.com/sirupsen/logrus"
 )
 
 func Test_ConfigFactory(t *testing.T) {
 	config := NewConfig()
-	if config.MappingPath != DEFAULT_MAPPING_PATH {
-		t.Errorf("Expected the mapping path to be the default path %s", DEFAULT_MAPPING_PATH)
+	if config.MappingPath != DefaultMappingPath {
+		t.Errorf("Expected the mapping path to be the default path %s", DefaultMappingPath)
 	}
-	if config.Port != DEFAULT_PORT {
-		t.Errorf("Expected the default port to %d", DEFAULT_PORT)
+	if config.Port != DefaultPort {
+		t.Errorf("Expected the default port to %d", DefaultPort)
 	}
 }
 
 func Test_ConfigAndPorts(t *testing.T) {
 	config := NewConfig()
 	config.setPerformance(true)
-	config.useHttp(false, "./cert", "./key")
+	config.setHTTP(false, "./cert", "./key")
 
 	if !config.PerformanceMode {
 		t.Errorf("Expected performance mode not to be %v", config.PerformanceMode)
 	}
 
-	if config.UseHttp {
+	if config.UseHTTP {
 		t.Errorf("Expected to see http mode disabled, instead found it enabled")
 	}
 
 	config.setPort(0)
-	if config.Port != DEFAULT_PORT_TLS {
-		t.Errorf("Expected to see default port of %d, instead found %d", DEFAULT_PORT, config.Port)
+	if config.Port != DefaultPortTLS {
+		t.Errorf("Expected to see default port of %d, instead found %d", DefaultPort, config.Port)
 	}
 
 	config.setPort(1000)
@@ -41,10 +42,10 @@ func Test_ConfigAndPorts(t *testing.T) {
 		t.Errorf("Expected port to be 1000, instead found %d", config.Port)
 	}
 
-	config.useHttp(true, "", "")
+	config.setHTTP(true, "", "")
 	config.setPort(0)
-	if config.Port != DEFAULT_PORT {
-		t.Errorf("Expected to see default port of %d, instead found %d", DEFAULT_PORT, config.Port)
+	if config.Port != DefaultPort {
+		t.Errorf("Expected to see default port of %d, instead found %d", DefaultPort, config.Port)
 	}
 
 	config.SetPort("1001")
@@ -60,9 +61,9 @@ func Test_ExitConfigMapping(t *testing.T) {
 	exitReached := false
 
 	config := NewConfig()
-	config.exitFunc = func(code int){
-		if code != errors.EXIT_CODE_BAD_MAPPING_FILE {
-			t.Errorf("Expected exit code of [%v], got [%v]", errors.EXIT_CODE_BAD_MAPPING_FILE, code)
+	config.exitFunc = func(code int) {
+		if code != errors.ExitCodeBadMappingFile {
+			t.Errorf("Expected exit code of [%v], got [%v]", errors.ExitCodeBadMappingFile, code)
 		}
 		exitReached = true
 	}
@@ -76,7 +77,7 @@ func Test_ExitConfigMapping(t *testing.T) {
 func Test_ConfigMapping(t *testing.T) {
 	goodFile := "./tests/test-redirect-map.yml"
 	config := NewConfig()
-	config.exitFunc = func(code int){
+	config.exitFunc = func(code int) {
 		t.Errorf("Did not Expected to see an exception and have the app exit on attempting to load a good config.")
 	}
 	config.setMappingFile(goodFile)
@@ -87,7 +88,7 @@ func Test_ConfigLogLevel(t *testing.T) {
 	config := NewConfig()
 
 	// First lets test expected values
-	config.exitFunc = func(code int){
+	config.exitFunc = func(code int) {
 		t.Errorf("Did not Expected to see an exception, please see logs and test.")
 	}
 	config.setLogLevel(debug)
@@ -98,8 +99,8 @@ func Test_ConfigLogLevel(t *testing.T) {
 	// Now test bad values
 	exitReached := false
 	config.exitFunc = func(code int) {
-		if code != errors.EXIT_CODE_INVALID_LOGLEVEL {
-			t.Errorf("Expected exit code of [%v], got [%v]", errors.EXIT_CODE_INVALID_LOGLEVEL, code)
+		if code != errors.ExitCodeInvalidLoglevel {
+			t.Errorf("Expected exit code of [%v], got [%v]", errors.ExitCodeInvalidLoglevel, code)
 		}
 		exitReached = true
 	}
@@ -112,7 +113,7 @@ func Test_ConfigLogLevel(t *testing.T) {
 func Test_SetPort(t *testing.T) {
 	config := NewConfig()
 
-	config.exitFunc = func(code int){
+	config.exitFunc = func(code int) {
 		t.Errorf("Did not Expected to see an exception and have the app exit on attempting to load a good config.")
 	}
 
@@ -121,10 +122,9 @@ func Test_SetPort(t *testing.T) {
 	config.SetPort("443")
 	config.SetPort("8443")
 
-
 	config.exitFunc = func(code int) {
-		if code != errors.EXIT_CODE_BAD_PORT {
-			t.Errorf("Expected exit code of [%v], got [%v]", errors.EXIT_CODE_BAD_PORT, code)
+		if code != errors.ExitCodeBadPort {
+			t.Errorf("Expected exit code of [%v], got [%v]", errors.ExitCodeBadPort, code)
 		}
 	}
 	config.SetPort("TRASH")
@@ -133,8 +133,8 @@ func Test_SetPort(t *testing.T) {
 func Test_SetMappingPath(t *testing.T) {
 	goodTestFile := "./tests/test-redirect-map.yml"
 	//config := NewConfig()
-	if path := setMappingPath(); path != DEFAULT_MAPPING_PATH {
-		t.Errorf("Expected function to return [%v]", DEFAULT_MAPPING_PATH)
+	if path := setMappingPath(); path != DefaultMappingPath {
+		t.Errorf("Expected function to return [%v]", DefaultMappingPath)
 	}
 
 	os.Setenv("MAPPING_PATH", goodTestFile)
@@ -241,7 +241,7 @@ func Test_FastServerRoutes(t *testing.T) {
 
 /**
 Test routes not found and specifically favicon which we return as 404.
- */
+*/
 func Test_FastServerNotFoundRoutes(t *testing.T) {
 	testFile := "./tests/test-redirect-map.yml"
 
@@ -278,7 +278,7 @@ func Test_FastServerNotFoundRoutes(t *testing.T) {
 
 /**
 These routes are set in the test mapping file.
- */
+*/
 func Test_FastServerMappedRoute(t *testing.T) {
 	testFile := "./tests/test-redirect-map.yml"
 
