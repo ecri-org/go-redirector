@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"github.com/urfave/cli"
 	"go-redirector/errors"
 	"net/http/httptest"
 	"os"
@@ -307,5 +309,74 @@ func Test_FastServerMappedRoute(t *testing.T) {
 		if resp.StatusCode != expectedStatusCode {
 			t.Errorf("expected [%d], got [%d]", expectedStatusCode, resp.StatusCode)
 		}
+	}
+}
+
+func Test_CreateServer(t *testing.T) {
+	// Bare minimum required
+	fl := cli.StringFlag{
+		Name:  "log-level, l",
+		Value: DefaultLogLevel.String(),
+		Usage: "Log level of the app `LOG_LEVEL`",
+	}
+	flagSet := flag.NewFlagSet("test", 0)
+	fl.Apply(flagSet)
+
+	app := cli.NewApp()
+	context := cli.NewContext(app, flagSet, nil)
+	if context == nil {
+		t.Errorf("bad")
+	}
+
+	server := createServer(context)
+	if server == nil {
+		t.Errorf("bad")
+	}
+}
+
+func Test_GetAppCommands(t *testing.T) {
+	commands := getAppCommands()
+	flags := commands[0].Flags
+
+	// carefully match theese from the flags in `main.go`
+	expectedFlags := []string{
+		"log-level, l",
+		"http",
+		"file, f",
+		"port, p",
+		"performance-mode",
+		"cert",
+		"key",
+	}
+
+	if len(flags) != len(expectedFlags) {
+		t.Errorf("getAppCommands generates %d flags, expectedFlags should match it, len was %d", len(flags), len(expectedFlags))
+	}
+
+	found := 0
+	for _, flag := range flags {
+		for _, e := range expectedFlags {
+			flagName := flag.GetName()
+			if e == flagName {
+				found = found + 1
+			}
+		}
+	}
+
+	if found != len(expectedFlags) {
+		t.Errorf("getAppCommands generates %d flags, instead based on expectedFlags only found %d", found, len(expectedFlags))
+	}
+}
+
+func Test_NewApp(t *testing.T) {
+	commands := getAppCommands()
+	app := newApp(commands)
+
+	if app.Name != DefaultAppName {
+		t.Errorf("Expected to see the default app name as %s, but found %s", DefaultAppName, app.Name)
+	}
+
+	if app.Usage != DefaultAppName {
+		t.Errorf("Expected to see the default app usage as %s, but found %s", DefaultAppName, app.Name)
 	}
 }
