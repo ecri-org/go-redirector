@@ -338,7 +338,7 @@ func Test_GetAppCommands(t *testing.T) {
 	commands := getAppCommands()
 	flags := commands[0].Flags
 
-	// carefully match theese from the flags in `main.go`
+	// carefully match these from the flags in `main.go`
 	expectedFlags := []string{
 		"log-level, l",
 		"http",
