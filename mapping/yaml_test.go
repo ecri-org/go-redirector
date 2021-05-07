@@ -2,6 +2,7 @@ package mapping
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -31,6 +32,14 @@ var badMappings = []struct{
 	{
 		"/pathA",
 		"ftp://127.0.0.1",  // we only accept https, sorry
+	},
+	{
+		"/pathA",
+		"ftp//127.0.0.1",  // bad URI
+	},
+	{
+		"/pathA",
+		"ftp//127.0.0./?",  // bad path
 	},
 }
 
@@ -64,7 +73,7 @@ func Test_badMappings(t *testing.T) {
 			testData.path: testData.redirect,
 		}
 		if err := mapping.Validate(); err == nil {
-			msg := fmt.Sprintf("Expected badMappings[%d] to be invalid, ended up being valid.", index)
+			msg := fmt.Sprintf("Expected badMappings[%d] to be invalid, ended up being valid.\n", index)
 			t.Errorf(msg)
 		}
 	}
@@ -174,6 +183,45 @@ mapping:
 
 		if uri := data.GetRedirectUri("testhost", "/"); uri != "" {
 			t.Error("Incorrect URI obtained, expected empty string since mapping doesn't specify a wildcard root '/'")
+		}
+	}
+}
+
+/**
+Rely on the tests above to test the mapping. Here we test for files that exist, or those
+that cannot be loaded via `yaml.Unmarshal()`.
+ */
+func Test_LoadMappingFile(t *testing.T) {
+	testFile := "../tests/test-redirect-map.yml"
+	missingFile := "../tests/noop.yml"
+	badFile := "../tests/bad-redirect-map.yml"
+
+	// Load file which does not exist
+	if _, err := LoadMappingFile(missingFile); err == nil {
+		t.Errorf("Expected to see an error when using a missing file [%s].", missingFile)
+	}
+
+	// Load bad file, should yield 'cannot unmarshal'
+	if _, err := LoadMappingFile(badFile); err == nil {
+		t.Errorf("Expected to see an error when trying to parse a bad file [%s].", badFile)
+	}
+
+	// Test real file
+	if file, err := LoadMappingFile(testFile); err != nil {
+		t.Errorf("Expected to find the test redirect map yaml file [%s] and parse it.", err)
+	} else {
+		if err := file.Validate(); err != nil {
+			t.Errorf("Test failed as could not validate test file, see error %s", err)
+		}
+
+		keys := reflect.ValueOf(file.Mappings).MapKeys()
+		if len(keys) != 1 {
+			t.Errorf("Expected test file to have size of 1")
+		}
+
+		mapping := file.Mappings[keys[0].String()]
+		if len(mapping) != 2 {
+			t.Errorf("Expected to find two mappings for the key [%s], instead found [%d]", keys[0], len(mapping))
 		}
 	}
 }

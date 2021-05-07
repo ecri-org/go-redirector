@@ -11,7 +11,7 @@ import (
 
 type Mapping map[string]string
 
-func (m Mapping) Get(entry string) (string) {
+func (m Mapping) Get(entry string) string {
 	if value, ok := m[entry]; ok {
 		return value
 	}
@@ -26,7 +26,7 @@ func (m Mapping) Validate() error {
 			return errors.New(msg)
 		}
 		if path[0] != '/' {
-			msg := fmt.Sprintf("Redirect uri [%s] must always be prefixed with '/', no relative paths accepted here.", path)
+			msg := fmt.Sprintf("Redirect uri [%s] must always be prefixed with '/', no relative paths accepted here.\n", path)
 			log.Errorf(msg)
 			return errors.New(msg)
 		}
@@ -53,6 +53,10 @@ func (m Mapping) Validate() error {
 
 type MappingsFile struct {
 	Mappings map[string]Mapping `yaml:"mapping,omitempty"`
+}
+
+func NewMappingsFile() *MappingsFile {
+	return &MappingsFile{}
 }
 
 func (m *MappingsFile) Validate() error {
@@ -93,17 +97,17 @@ func (m *MappingsFile) GetRedirectUri(host string, path string) string {
 Parse the mapping file.
  */
 func Parse(data []byte) (*MappingsFile, error) {
-	mappingFile := MappingsFile{}
+	mappingFile := NewMappingsFile()
 
-	if err := yaml.Unmarshal([]byte(data), &mappingFile); err !=nil {
-		return &mappingFile, err
+	if err := yaml.Unmarshal([]byte(data), mappingFile); err !=nil {
+		return mappingFile, err
 	}
 
 	if err := mappingFile.Validate(); err != nil {
-		return &mappingFile, err
+		return mappingFile, err
 	}
 
-	return &mappingFile, nil
+	return mappingFile, nil
 }
 
 /**

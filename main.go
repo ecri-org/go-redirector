@@ -39,6 +39,8 @@ const (
 	DEFAULT_SERVER_KEY = "./certs/server.key"
 )
 
+type ExitFunc func (code int)
+
 type Config struct {
 	LogLevel        log.Level
 	MappingPath     string
@@ -49,6 +51,7 @@ type Config struct {
 	UseHttp         bool
 	ServerCert      string
 	ServerKey       string
+	exitFunc        ExitFunc
 }
 
 func (c *Config) setPerformance(performanceMode bool) {
@@ -86,7 +89,7 @@ func (c *Config) setMappingFile(filePath string) {
 	// use the mapping file
 	if mappingFile, err := mapping.LoadMappingFile(c.MappingPath); err != nil {
 		log.Errorf("Bad mapping file: %v", err)
-		os.Exit(errors.EXIT_CODE_BAD_MAPPING_FILE)
+		c.exitFunc(errors.EXIT_CODE_BAD_MAPPING_FILE)
 	} else {
 		c.MappingsFile = mappingFile
 	}
@@ -95,7 +98,7 @@ func (c *Config) setMappingFile(filePath string) {
 func (c *Config) setLogLevel(logLevel string) {
 	if level, err := log.ParseLevel(logLevel); err != nil {
 		log.Errorf("Error: %v", err)
-		os.Exit(errors.EXIT_CODE_INVALID_LOGLEVEL)
+		c.exitFunc(errors.EXIT_CODE_INVALID_LOGLEVEL)
 	} else {
 		c.LogLevel = level
 		log.SetLevel(level)
@@ -105,7 +108,7 @@ func (c *Config) setLogLevel(logLevel string) {
 
 func (c *Config) SetPort(port string) {
 	if aPort, err := strconv.Atoi(port); err != nil {
-		os.Exit(errors.EXIT_CODE_BAD_PORT)
+		c.exitFunc(errors.EXIT_CODE_BAD_PORT)
 	} else {
 		c.Port = aPort
 	}
@@ -119,24 +122,26 @@ func setMappingPath() string {
 	}
 }
 
+
+func goExit(code int) {
+	os.Exit(code)
+}
+
 func NewConfig() *Config {
 	mappingPath := setMappingPath()
 
 	return &Config{
 		MappingPath: mappingPath,
 		Port: DEFAULT_PORT,
+		exitFunc: goExit,
 	}
 }
 
 /**
 Loads ENV from file starting from HOME, then to local directory.
 Then creates a config object.
- */
-func LoadEnv() *Config {
-	// env info
-	local := fmt.Sprintf("./.env")
-	home := fmt.Sprintf("%s/%s", os.Getenv("HOME"), ".env")
-
+*/
+func LoadEnvPaths(local string, home string) *Config {
 	loadEnv := func(fileName string) bool {
 		// load env file first, try home
 		if _, err := os.Stat(fileName); err == nil {
@@ -155,6 +160,12 @@ func LoadEnv() *Config {
 	return NewConfig()
 }
 
+func LoadEnv() *Config {
+	local := "./.env"
+	home := fmt.Sprintf("%s/%s", os.Getenv("HOME"), local)
+	return LoadEnvPaths(local, home)
+}
+
 type TemplateData struct {
 	RedirectUri string
 }
@@ -166,9 +177,15 @@ func NewTemplateData(redirectUri string) *TemplateData {
 type FastServer struct {
 	Config *Config
 	MappingFile *mapping.MappingsFile
+	server *fiber.App
 	//PrometheusExporter *prometheus.Exporter
 }
 
+/**
+Respond to health only if host is localhost. Simple guard.
+Rely on metrics in future for stats.
+Systems deploying (docker, k8) can craft headers with localhost in probes.
+ */
 func (f *FastServer) healthy(c *fiber.Ctx) error {
 	if f.parseHost(c.Hostname()) == "localhost" {
 		return c.SendStatus(200)
@@ -231,7 +248,10 @@ func (f *FastServer) parseHost(host string) string {
 	}
 }
 
-func (f *FastServer) Serve(port int) error {
+/**
+Bootstrap routes
+ */
+func (f *FastServer) setup() *fiber.App {
 	engine := html.New("./views", ".tpl") // golang template
 	server := fiber.New(fiber.Config{
 		Views: engine,
@@ -248,6 +268,12 @@ func (f *FastServer) Serve(port int) error {
 	server.Get("/healthy", f.healthy)
 	server.Get("/metrics", f.metrics)
 	server.Get("/*", f.index)
+	f.server = server
+	return server
+}
+
+func (f *FastServer) Serve(port int) error {
+	server := f.setup()
 
 	if f.Config.UseHttp {
 		if err := server.Listen(fmt.Sprintf(":%d", port)); err != nil {
@@ -265,7 +291,7 @@ func (f *FastServer) Serve(port int) error {
 }
 
 func NewFastServer(config *Config, mappingFile *mapping.MappingsFile) *FastServer {
-	return &FastServer{config, mappingFile}
+	return &FastServer{config, mappingFile, fiber.New()}
 }
 
 func Run(args []string) {

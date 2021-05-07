@@ -1,7 +1,9 @@
 package errors
 
+//type errorType int
+
 const (
-	EXIT_CODE_CONFIG_ERROR = iota
+	EXIT_CODE_CONFIG_ERROR int = iota
 	EXIT_CODE_EXECUTION_FAILURE
 	EXIT_CODE_APP_DEV_ERROR
 	EXIT_CODE_BAD_PORT
@@ -12,4 +14,3 @@ const (
 	EXIT_CODE_INVALID_LOGLEVEL
 	EXIT_METRICS_ISSUE
 )
-
