@@ -15,6 +15,25 @@ The server can contain multiple mapped entries of host:path -> destination.
 Can be run as a docker container, and comes in at ~ 13MB in size.
 
 
+## Mapping File
+
+The mapping example below creates an entry for host `testhost`.
+This host named `testhost` has two path entries.
+  1. `/my-path` - a specific path
+  2. `/` - presence of a root path `/` is the equivalent of specifying a wildcard. If you wish to exclude this path, then only matching paths (in this case `my-path`) will redirect, all others will return `404`.
+
+```yaml
+---
+mapping:
+  testhost:
+    "/my-path":
+      friendly: true
+      redirect: https://localhost:8081
+    "/":
+      friendly: true
+      redirect: https://localhost:8082
+```
+
 ## Devs
 
 ```shell

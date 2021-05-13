@@ -9,20 +9,26 @@ import (
 	"net/url"
 )
 
+type MappingEntry struct {
+	Friendly bool   `yaml:friendly,omitempty"`
+	Redirect string `yaml:redirect,omitempty`
+}
+
 // Mapping is a type which is used to store mapping in the mappings file
-type Mapping map[string]string
+type Mapping map[string]MappingEntry
 
 // Get an entry from the mapping
-func (m Mapping) Get(entry string) string {
-	if value, ok := m[entry]; ok {
-		return value
-	}
-	return ""
+func (m Mapping) Get(entry string) MappingEntry {
+	//if value, ok := m[entry]; ok {
+	//	return value
+	//}
+	//return nil
+	return m[entry]
 }
 
 // Validate a single mapping
 func (m Mapping) Validate() error {
-	for path, redirectURI := range m {
+	for path, entry := range m {
 		if path == "" {
 			msg := "Found empty string as path."
 			log.Errorf(msg)
@@ -37,7 +43,7 @@ func (m Mapping) Validate() error {
 			return err
 		}
 
-		uri, err := url.ParseRequestURI(redirectURI)
+		uri, err := url.ParseRequestURI(entry.Redirect)
 		if err != nil {
 			log.Debugf("Redirect uri is not fully qualified.")
 			return err
@@ -61,7 +67,9 @@ type MappingsFile struct {
 
 // NewMappingsFile is a factory which creates new mappings file.
 func NewMappingsFile() *MappingsFile {
-	return &MappingsFile{}
+	return &MappingsFile{
+		Mappings: map[string]Mapping{},
+	}
 }
 
 // Validate validates the mappings file entirely
@@ -85,19 +93,37 @@ func (m *MappingsFile) Validate() error {
 func (m *MappingsFile) GetRedirectURI(host string, path string) string {
 	if mappingEntry, ok := m.Mappings[host]; ok {
 		// look for specific
-		if uri := mappingEntry.Get(path); uri != "" {
-			return uri
+		if entry := mappingEntry.Get(path); entry.Redirect != "" {
+			return entry.Redirect
 		}
 
 		// look for root TODO: might be better to sort later
-		if uri := mappingEntry.Get("/"); uri != "" {
-			return uri
+		if entry := mappingEntry.Get("/"); entry.Redirect != "" {
+			return entry.Redirect
 		}
 	}
 
 	msg := fmt.Sprintf("Could not find host and path [%s%s]", host, path)
 	log.Debugf(msg)
 	return ""
+}
+
+func (m *MappingsFile) GetMappingEntry(host string, path string) (*MappingEntry, error) {
+	if mappingEntry, ok := m.Mappings[host]; ok {
+		// look for specific
+		if entry := mappingEntry.Get(path); entry.Redirect != "" {
+			return &entry, nil
+		}
+
+		// look for root TODO: might be better to sort later
+		if entry := mappingEntry.Get("/"); entry.Redirect != "" {
+			return &entry, nil
+		}
+	}
+
+	msg := fmt.Sprintf("Could not find host and path [%s%s]", host, path)
+	log.Debugf(msg)
+	return nil, errors.New(msg)
 }
 
 // Parse the mapping file.
@@ -115,7 +141,7 @@ func Parse(data []byte) (*MappingsFile, error) {
 	return mappingFile, nil
 }
 
-// LoadMappingFile loads a file, assuming it is a redirect map file.
+// LoadMappingFile loads a file, assuming it is a Redirect map file.
 func LoadMappingFile(file string) (*MappingsFile, error) {
 	data, err := ioutil.ReadFile(file)
 

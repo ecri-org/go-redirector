@@ -10,46 +10,86 @@ import (
 These patterns will not pass validation.
 */
 var badMappings = []struct {
-	path     string
-	redirect string
+	path         string
+	mappingEntry MappingEntry
 }{
 	{
 		"", // empty path
-		"https://127.0.0.1",
+		MappingEntry{
+			true,
+			"https://127.0.0.1",
+		},
 	},
 	{
 		"pathA",
-		"://127.0.0.1", // no scheme
+		MappingEntry{
+			true,
+			"://127.0.0.1", // no scheme
+		},
 	},
 	{
 		"pathA", // path has no slash prefix
-		"https://127.0.0.1",
+		MappingEntry{
+			true,
+			"https://127.0.0.1",
+		},
 	},
 	{
 		"/pathA",
-		"http://127.0.0.1", // we only accept https, sorry
+		MappingEntry{
+			true,
+			"http://127.0.0.1", // we only accept https, sorry
+		},
 	},
 	{
 		"/pathA",
-		"ftp://127.0.0.1", // we only accept https, sorry
+		MappingEntry{
+			true,
+			"ftp://127.0.0.1", // we only accept https, sorry
+		},
 	},
 	{
 		"/pathA",
-		"ftp//127.0.0.1", // bad URI
+		MappingEntry{
+			true,
+			"ftp//127.0.0.1", // bad URI
+		},
 	},
 	{
 		"/pathA",
-		"ftp//127.0.0./?", // bad path
+		MappingEntry{
+			true,
+			"ftp//127.0.0./?", // bad path
+		},
+	},
+	{
+		"/pathA#fragment",
+		MappingEntry{
+			true,
+			"https://\u007F", // rune in path
+		},
+	},
+	{
+		"/\x7f#fragment", // rune in path
+		MappingEntry{
+			true,
+			"https://127.0.0.1",
+		},
 	},
 }
 
 func Test_MappingValidate(t *testing.T) {
 	path := "/"
 	redirect := "https://127.0.0.1"
+	friendly := true
 	mapping := Mapping{
-		path: redirect,
+		path: MappingEntry{
+			Friendly: friendly,
+			Redirect: redirect,
+		},
 	}
 
+	// Test valid
 	if err := mapping.Validate(); err != nil {
 		t.Errorf("Could not parse and validate new MappingsFile, error:[%s]", err)
 	}
@@ -58,8 +98,12 @@ func Test_MappingValidate(t *testing.T) {
 func Test_MappingScheme(t *testing.T) {
 	path := "/"
 	redirect := "https://127.0.0.1"
+	friendly := true
 	mapping := Mapping{
-		path: redirect,
+		path: MappingEntry{
+			Friendly: friendly,
+			Redirect: redirect,
+		},
 	}
 
 	if err := mapping.Validate(); err != nil {
@@ -70,7 +114,10 @@ func Test_MappingScheme(t *testing.T) {
 func Test_badMappings(t *testing.T) {
 	for index, testData := range badMappings {
 		mapping := Mapping{
-			testData.path: testData.redirect,
+			testData.path: MappingEntry{
+				Friendly: testData.mappingEntry.Friendly,
+				Redirect: testData.mappingEntry.Redirect,
+			},
 		}
 		if err := mapping.Validate(); err == nil {
 			msg := fmt.Sprintf("Expected badMappings[%d] to be invalid, ended up being valid.\n", index)
@@ -88,8 +135,14 @@ func Test_MappingsMap(t *testing.T) {
 	redirectMap := MappingsFile{
 		Mappings: map[string]Mapping{
 			expectedKey: {
-				"/mypath":  "https://127.0.0.1",
-				"/mypath2": "https://127.0.0.1",
+				"/mypath": MappingEntry{
+					true,
+					"https://127.0.0.1",
+				},
+				"/mypath2": MappingEntry{
+					true,
+					"https://127.0.0.1",
+				},
 			},
 		},
 	}
@@ -128,8 +181,12 @@ func Test_MappingFileWithLocalhost(t *testing.T) {
 	testFile := `---
 mapping:
   localhost:
-    "/my-path": https://localhost:8081
-    "/": https://localhost:8082
+    "/my-path":
+      friendly: true
+      redirect: https://localhost:8081
+    "/":
+      friendly: true
+      redirect: https://localhost:8082
 `
 
 	if _, err := Parse([]byte(testFile)); err == nil {
@@ -141,8 +198,12 @@ func Test_MappingFileWithRoot(t *testing.T) {
 	testFile := `---
 mapping:
   testhost:
-    "/my-path": https://localhost:8081
-    "/": https://localhost:8082
+    "/my-path":
+      friendly: true
+      redirect: https://localhost:8081
+    "/":
+      friendly: true
+      redirect: https://localhost:8082
 `
 
 	if data, err := Parse([]byte(testFile)); err != nil {
@@ -168,7 +229,9 @@ func Test_MappingFileWithoutRoot(t *testing.T) {
 	testFile := `---
 mapping:
   testhost:
-    "/my-path": https://localhost:8081
+    "/my-path":
+      friendly: true
+      redirect: https://localhost:8081
 `
 	if data, err := Parse([]byte(testFile)); err != nil {
 		t.Errorf("Could not parse test data: %v", err)
@@ -192,9 +255,9 @@ Rely on the tests above to test the mapping. Here we test for files that exist, 
 that cannot be loaded via `yaml.Unmarshal()`.
 */
 func Test_LoadMappingFile(t *testing.T) {
-	testFile := "../tests/test-redirect-map.yml"
+	testFile := "../tests/test-Redirect-map.yml"
 	missingFile := "../tests/noop.yml"
-	badFile := "../tests/bad-redirect-map.yml"
+	badFile := "../tests/bad-Redirect-map.yml"
 
 	// Load file which does not exist
 	if _, err := LoadMappingFile(missingFile); err == nil {
@@ -208,7 +271,7 @@ func Test_LoadMappingFile(t *testing.T) {
 
 	// Test real file
 	if file, err := LoadMappingFile(testFile); err != nil {
-		t.Errorf("Expected to find the test redirect map yaml file [%s] and parse it.", err)
+		t.Errorf("Expected to find the test Redirect map yaml file [%s] and parse it.", err)
 	} else {
 		if err := file.Validate(); err != nil {
 			t.Errorf("Test failed as could not validate test file, see error %s", err)
@@ -223,5 +286,64 @@ func Test_LoadMappingFile(t *testing.T) {
 		if len(mapping) != 2 {
 			t.Errorf("Expected to find two mappings for the key [%s], instead found [%d]", keys[0], len(mapping))
 		}
+	}
+}
+
+func Test_GetMappingEntryNoRoot(t *testing.T) {
+	host := "testhost"
+	testFile := fmt.Sprintf(`---
+mapping:
+  %s:
+    "/my-path":
+      friendly: true
+      redirect: https://localhost:8081
+`, host)
+
+	mappingsFile, err := Parse([]byte(testFile))
+	if err != nil {
+		t.Errorf("Data was expected to be valid: %v", err)
+	}
+
+	// found entry
+	path := "/my-path"
+	if _, entryError := mappingsFile.GetMappingEntry(host, path); entryError != nil {
+		t.Errorf("Expected to be able and retreive path: [%s]", path)
+	}
+
+	// invalid entry
+	path = "/some-other-path"
+	if _, entryError := mappingsFile.GetMappingEntry(host, path); entryError == nil {
+		t.Errorf("Expected not to be able and retreive path: [%s], error: [%s]", path, entryError)
+	}
+}
+
+func Test_GetMappingEntryWithRoot(t *testing.T) {
+	host := "testhost"
+	testFile := fmt.Sprintf(`---
+mapping:
+  %s:
+    "/my-path":
+      friendly: true
+      redirect: https://localhost:8081
+    "/":
+      friendly: true
+      redirect: https://localhost:8082
+`, host)
+
+	mappingsFile, err := Parse([]byte(testFile))
+	if err != nil {
+		t.Errorf("Data was expected to be valid: %v", err)
+	}
+
+	// found entry
+	path := "/my-path"
+	if _, entryError := mappingsFile.GetMappingEntry(host, path); entryError != nil {
+		t.Errorf("Expected to be able and retreive path: [%s]", path)
+	}
+
+	// invalid entry
+	path = "/some-other-path"
+	if _, entryError := mappingsFile.GetMappingEntry(host, path); entryError != nil {
+		t.Errorf("Expected to see root as that is the fall through wildcard path when looking for path: [%s], error: [%s]", path, entryError)
 	}
 }

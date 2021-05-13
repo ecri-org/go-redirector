@@ -248,9 +248,10 @@ func (f *FastServer) index(c *fiber.Ctx) error {
 	remoteAddr := c.IP()
 	userAgent := c.Get("User-Agent")
 	scheme := string(c.Request().URI().Scheme())
-	redirectURI := f.MappingFile.GetRedirectURI(host, uri)
+	mappingEntry, err := f.MappingFile.GetMappingEntry(host, uri)
 
-	if redirectURI == "" {
+	// Can't find, return 404
+	if err != nil {
 		log.Infof("Request not found for [%s%s], remote client [%s] with user-agent: [%s]",
 			host, uri, remoteAddr, userAgent,
 		)
@@ -258,11 +259,19 @@ func (f *FastServer) index(c *fiber.Ctx) error {
 		return c.SendStatus(404)
 	}
 
-	log.Infof("Redirecting to [%s%s] from [%s://%s%s] for remote client [%s] with user-agent: [%s]",
-		redirectURI, uri, scheme, c.Hostname(), uri, remoteAddr, userAgent,
-	)
+	if !mappingEntry.Friendly {
+		log.Infof("Redirecting directly to [%s%s] from [%s://%s%s] for remote client [%s] with user-agent: [%s]",
+			mappingEntry.Redirect, uri, scheme, c.Hostname(), uri, remoteAddr, userAgent,
+		)
 
-	data := NewTemplateData(redirectURI)
+		targetURI := fmt.Sprintf("%s%s", mappingEntry.Redirect, uri)
+		c.Redirect(targetURI, 302)
+	}
+
+	log.Infof("Friendly redirecting to [%s%s] from [%s://%s%s] for remote client [%s] with user-agent: [%s]",
+		mappingEntry.Redirect, uri, scheme, c.Hostname(), uri, remoteAddr, userAgent,
+	)
+	data := NewTemplateData(mappingEntry.Redirect)
 	return c.Render("html", data)
 }
 
@@ -294,6 +303,7 @@ func (f *FastServer) setup() *fiber.App {
 	server.Get("/healthy", f.healthy)
 	server.Get("/metrics", f.metrics)
 	server.Get("/*", f.index)
+
 	f.server = server
 	return server
 }
