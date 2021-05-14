@@ -3,7 +3,7 @@ package mapping
 import (
 	"fmt"
 	"github.com/juju/errors"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"net/url"
@@ -15,8 +15,13 @@ type Entry struct {
 	Redirect string `yaml:"redirect,omitempty"`
 }
 
+func (e Entry) clone() *Entry {
+	return &Entry{e.Friendly, e.Redirect}
+}
+
 func (e Entry) Defaults() *Entry {
-	if e.Friendly == nil {
+	newEntry := e.clone()
+	if newEntry.Friendly == nil {
 		friendly := true
 		e.Friendly = &friendly
 	}
@@ -43,19 +48,19 @@ func (m *Mapping) Validate() error {
 		//	log.Debugf("Parsed direct redirect from path [%s] to [%s]", path, entry.Redirect)
 		//}
 
-		log.Debugf("Parsed redirect from path [%s] to [%s]", path, entry.Redirect)
+		log.Debug().Msg(fmt.Sprintf("Parsed redirect from path [%s] to [%s]", path, entry.Redirect))
 
 		if path == "*" {
 			return nil
 		}
 		if path == "" {
 			msg := "Found empty string as path."
-			log.Errorf(msg)
+			log.Error().Msg(fmt.Sprintf(msg))
 			return errors.New(msg)
 		}
 		if path[0] != '/' {
 			msg := fmt.Sprintf("Redirect uri [%s] must always be prefixed with '/', no relative paths accepted here.\n", path)
-			log.Errorf(msg)
+			log.Error().Msg(fmt.Sprintf(msg))
 			return errors.New(msg)
 		}
 		if _, err := url.ParseRequestURI(path); err != nil {
@@ -64,7 +69,7 @@ func (m *Mapping) Validate() error {
 
 		uri, err := url.ParseRequestURI(entry.Redirect)
 		if err != nil {
-			log.Debugf("Redirect uri is not fully qualified.")
+			log.Debug().Msg(fmt.Sprintf("Redirect uri is not fully qualified."))
 			return err
 		}
 
@@ -121,7 +126,7 @@ func (m *MappingsFile) GetRedirectURI(host string, path string) string {
 	}
 
 	msg := fmt.Sprintf("Could not find host and path [%s%s]", host, path)
-	log.Debugf(msg)
+	log.Debug().Msg(fmt.Sprintf(msg))
 	return ""
 }
 
@@ -145,7 +150,7 @@ func (m *MappingsFile) GetMappingEntry(host string, path string) (*Entry, error)
 	}
 
 	msg := fmt.Sprintf("Could not find host and path [%s%s]", host, path)
-	log.Debugf(msg)
+	log.Debug().Msg(fmt.Sprintf(msg))
 	return nil, errors.New(msg)
 }
 
@@ -173,6 +178,6 @@ func LoadMappingFile(file string) (*MappingsFile, error) {
 		return nil, errors.Errorf(msg)
 	}
 
-	log.Debug("Able to parse yaml file")
+	log.Debug().Msg(fmt.Sprintf("Able to parse yaml file"))
 	return Parse(data)
 }
