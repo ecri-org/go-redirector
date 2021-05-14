@@ -15,6 +15,14 @@ The server can contain multiple mapped entries of host:path -> destination.
 Can be run as a docker container, and comes in at ~ 13MB in size.
 
 
+## Versions
+
+Versions:
+  - `0.2.0`:
+    - added new structure for each path entry, specifying `friendly` (bool, optional, default=true) which when false sends a direct 302, instead of a friendly page. See section _Mapping File_ below in docs.
+  - `0.1.3`:
+    - general improvements found through tests
+
 ## Mapping File
 
 The mapping example below creates an entry for host `testhost`.
@@ -22,6 +30,11 @@ This host named `testhost` has two path entries.
   1. `/my-path` - a specific path
   2. `/` - presence of a root path `/` is the equivalent of specifying a wildcard. If you wish to exclude this path, then only matching paths (in this case `my-path`) will redirect, all others will return `404`.
 
+Each mapping entry has two values which _MUST_ be set.
+  1. `friendly`: (bool) true shows a friendly html page with a javascript redirect, false will have the client receive a 302 (proper for direct GET requests and where you don't want SEO resource link updates).
+  2. `redirect`: (string) path starting with `/`. Can be explicitly `/` or `*` to denote being a wildcard. The author personally prefers `/`.
+
+Preferred:
 ```yaml
 ---
 mapping:
@@ -30,6 +43,19 @@ mapping:
       friendly: true
       redirect: https://localhost:8081
     "/":
+      friendly: true
+      redirect: https://localhost:8082
+```
+
+Alternative Equivalent:
+```yaml
+---
+mapping:
+  testhost:
+    "/my-path":
+      friendly: true
+      redirect: https://localhost:8081
+    "*":
       friendly: true
       redirect: https://localhost:8082
 ```

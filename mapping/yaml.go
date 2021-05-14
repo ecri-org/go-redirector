@@ -9,26 +9,45 @@ import (
 	"net/url"
 )
 
-type MappingEntry struct {
-	Friendly bool   `yaml:friendly,omitempty"`
-	Redirect string `yaml:redirect,omitempty`
+// Entry defines the inner object for each path
+type Entry struct {
+	Friendly *bool  `yaml:"friendly,omitempty"`
+	Redirect string `yaml:"redirect,omitempty"`
+}
+
+func (e Entry) Defaults() *Entry {
+	if e.Friendly == nil {
+		friendly := true
+		e.Friendly = &friendly
+	}
+	return &e
 }
 
 // Mapping is a type which is used to store mapping in the mappings file
-type Mapping map[string]MappingEntry
+type Mapping map[string]Entry
 
 // Get an entry from the mapping
-func (m Mapping) Get(entry string) MappingEntry {
-	//if value, ok := m[entry]; ok {
-	//	return value
-	//}
-	//return nil
-	return m[entry]
+func (m Mapping) Get(entry string) *Entry {
+	return m[entry].Defaults()
 }
 
 // Validate a single mapping
-func (m Mapping) Validate() error {
-	for path, entry := range m {
+func (m *Mapping) Validate() error {
+	for path, _ := range *m {
+		entry := m.Get(path)
+
+		//isFriendly := *entry.Friendly
+		//if isFriendly == true {
+		//	log.Debugf("Parsed friendly redirect from path [%s] to [%s]", path, entry.Redirect)
+		//} else {
+		//	log.Debugf("Parsed direct redirect from path [%s] to [%s]", path, entry.Redirect)
+		//}
+
+		log.Debugf("Parsed redirect from path [%s] to [%s]", path, entry.Redirect)
+
+		if path == "*" {
+			return nil
+		}
 		if path == "" {
 			msg := "Found empty string as path."
 			log.Errorf(msg)
@@ -53,8 +72,6 @@ func (m Mapping) Validate() error {
 			msg := fmt.Sprintf("Redirect uri scheme on [%s] needs to be changed and use 'https' as the scheme.", uri.String())
 			return errors.New(msg)
 		}
-
-		log.Debugf("Parsed %s", uri.String())
 	}
 
 	return nil
@@ -62,13 +79,13 @@ func (m Mapping) Validate() error {
 
 // MappingsFile describes the mapping file
 type MappingsFile struct {
-	Mappings map[string]Mapping `yaml:"mapping,omitempty"`
+	Mappings map[string]*Mapping `yaml:"mapping,omitempty"`
 }
 
 // NewMappingsFile is a factory which creates new mappings file.
 func NewMappingsFile() *MappingsFile {
 	return &MappingsFile{
-		Mappings: map[string]Mapping{},
+		Mappings: map[string]*Mapping{},
 	}
 }
 
@@ -108,16 +125,22 @@ func (m *MappingsFile) GetRedirectURI(host string, path string) string {
 	return ""
 }
 
-func (m *MappingsFile) GetMappingEntry(host string, path string) (*MappingEntry, error) {
+// GetMappingEntry returns an entry for a particular mapping given the user defined host and path
+func (m *MappingsFile) GetMappingEntry(host string, path string) (*Entry, error) {
 	if mappingEntry, ok := m.Mappings[host]; ok {
 		// look for specific
 		if entry := mappingEntry.Get(path); entry.Redirect != "" {
-			return &entry, nil
+			return entry, nil
 		}
 
 		// look for root TODO: might be better to sort later
 		if entry := mappingEntry.Get("/"); entry.Redirect != "" {
-			return &entry, nil
+			return entry, nil
+		}
+
+		// look for wildcard
+		if entry := mappingEntry.Get("*"); entry.Redirect != "" {
+			return entry, nil
 		}
 	}
 

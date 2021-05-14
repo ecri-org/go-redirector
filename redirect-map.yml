@@ -4,9 +4,11 @@ mapping:
     "/my-path":
       friendly: true
       redirect: https://localhost:8081
-    "/raw-redirect":
+    "/my-path2":
+      redirect: https://localhost:8084
+    "/direct":
       friendly: false
       redirect: https://localhost:8083
-    "/":
+    "*":
       friendly: true
       redirect: https://localhost:8082

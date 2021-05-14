@@ -259,13 +259,14 @@ func (f *FastServer) index(c *fiber.Ctx) error {
 		return c.SendStatus(404)
 	}
 
-	if !mappingEntry.Friendly {
+	if !*mappingEntry.Friendly {
 		log.Infof("Redirecting directly to [%s%s] from [%s://%s%s] for remote client [%s] with user-agent: [%s]",
 			mappingEntry.Redirect, uri, scheme, c.Hostname(), uri, remoteAddr, userAgent,
 		)
 
 		targetURI := fmt.Sprintf("%s%s", mappingEntry.Redirect, uri)
-		c.Redirect(targetURI, 302)
+		statusCode := 302
+		return c.Redirect(targetURI, statusCode) //nolint
 	}
 
 	log.Infof("Friendly redirecting to [%s%s] from [%s://%s%s] for remote client [%s] with user-agent: [%s]",
@@ -344,7 +345,7 @@ func createServer(c *cli.Context) *FastServer {
 	config.setMappingFile(c.String("file"))
 	config.setPort(c.Int("port"))
 
-	log.Infof("Loaded [%d] redirect mappings.", len(config.MappingsFile.Mappings))
+	log.Infof("Loaded mappings for [%d] host(s).", len(config.MappingsFile.Mappings))
 	log.Infof("Running server on port [%d].", config.Port)
 
 	server := NewFastServer(config, config.MappingsFile)
