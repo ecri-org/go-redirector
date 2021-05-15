@@ -263,9 +263,9 @@ Rely on the tests above to test the mapping. Here we test for files that exist, 
 that cannot be loaded via `yaml.Unmarshal()`.
 */
 func Test_LoadMappingFile(t *testing.T) {
-	testFile := "../tests/test-Redirect-map.yml"
+	testFile := "../tests/test-redirect-map.yml"
 	missingFile := "../tests/noop.yml"
-	badFile := "../tests/bad-Redirect-map.yml"
+	badFile := "../tests/bad-redirect-map.yml"
 
 	// Load file which does not exist
 	if _, err := LoadMappingFile(missingFile); err == nil {
