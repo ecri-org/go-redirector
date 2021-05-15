@@ -11,7 +11,8 @@ import (
 
 	"github.com/gofiber/fiber/v2/middleware/favicon"
 	"github.com/joho/godotenv"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli"
 
 	"github.com/gofiber/template/html"
@@ -45,7 +46,7 @@ const (
 	ServerKey = "SERVER_KEY"
 
 	// DefaultLogLevel is the default log level to use
-	DefaultLogLevel = log.DebugLevel
+	DefaultLogLevel = zerolog.DebugLevel
 	// DefaultMappingPath is the default mapping file to use
 	DefaultMappingPath = "./redirect-map.yml"
 	// DefaultPort is the default port to use
@@ -63,7 +64,7 @@ type ExitFunc func(code int)
 
 // Config is a struct representing the configuration of the app
 type Config struct {
-	LogLevel        log.Level
+	LogLevel        zerolog.Level
 	MappingPath     string
 	Port            int
 	MappingsFile    *mapping.MappingsFile
@@ -77,7 +78,8 @@ type Config struct {
 func (c *Config) setPerformance(performanceMode bool) {
 	c.PerformanceMode = performanceMode
 	if performanceMode {
-		log.Info("Performance Mode Enabled")
+		log.Info().Msg("Performance Mode Enabled, overriding to HTTP mode")
+		c.setHTTP(true, "", "")
 		c.setLogLevel("error")
 	}
 }
@@ -87,7 +89,7 @@ func (c *Config) setHTTP(useHTTP bool, cert string, key string) {
 	if !useHTTP {
 		c.ServerCert = cert
 		c.ServerKey = key
-		log.Info("TLS Mode Enabled")
+		log.Info().Msg("TLS Mode Enabled")
 	}
 }
 
@@ -108,7 +110,7 @@ func (c *Config) setMappingFile(filePath string) {
 
 	// use the mapping file
 	if mappingFile, err := mapping.LoadMappingFile(c.MappingPath); err != nil {
-		log.Errorf("Bad mapping file: %v", err)
+		log.Error().Msg(fmt.Sprintf("Bad mapping file: %v", err))
 		c.exitFunc(errors.ExitCodeBadMappingFile)
 	} else {
 		c.MappingsFile = mappingFile
@@ -116,13 +118,12 @@ func (c *Config) setMappingFile(filePath string) {
 }
 
 func (c *Config) setLogLevel(logLevel string) {
-	if level, err := log.ParseLevel(logLevel); err != nil {
-		log.Errorf("Error: %v", err)
+	if level, err := zerolog.ParseLevel(strings.ToLower(logLevel)); err != nil {
+		log.Error().Msg(fmt.Sprintf("Error: %v", err))
 		c.exitFunc(errors.ExitCodeInvalidLoglevel)
 	} else {
 		c.LogLevel = level
-		log.SetLevel(level)
-		log.SetFormatter(&log.JSONFormatter{})
+		zerolog.SetGlobalLevel(level)
 	}
 }
 
@@ -166,7 +167,7 @@ func LoadEnvPaths(local string, home string) *Config {
 		// load env file first, try home
 		if _, err := os.Stat(fileName); err == nil {
 			if err := godotenv.Load(fileName); err != nil {
-				log.Fatalf("Error loading .env file %s", fileName)
+				log.Fatal().Msg(fmt.Sprintf("Error loading .env file %s", fileName))
 			}
 			return true
 		}
@@ -233,9 +234,9 @@ func (f *FastServer) notfound(c *fiber.Ctx) error {
 	remoteAddr := c.IP()
 	userAgent := c.Get("User-Agent")
 
-	log.Infof("Returning 404 for requested page [%s%s], by remote client [%s] with user-agent: [%s]",
+	log.Info().Msg(fmt.Sprintf("Returning 404 for requested page [%s%s], by remote client [%s] with user-agent: [%s]",
 		host, uri, remoteAddr, userAgent,
-	)
+	))
 
 	return c.SendStatus(404)
 }
@@ -248,21 +249,31 @@ func (f *FastServer) index(c *fiber.Ctx) error {
 	remoteAddr := c.IP()
 	userAgent := c.Get("User-Agent")
 	scheme := string(c.Request().URI().Scheme())
-	redirectURI := f.MappingFile.GetRedirectURI(host, uri)
+	mappingEntry, err := f.MappingFile.GetMappingEntry(host, uri)
 
-	if redirectURI == "" {
-		log.Infof("Request not found for [%s%s], remote client [%s] with user-agent: [%s]",
+	// Can't find, return 404
+	if err != nil {
+		log.Info().Msg(fmt.Sprintf("Request not found for [%s%s], remote client [%s] with user-agent: [%s]",
 			host, uri, remoteAddr, userAgent,
-		)
+		))
 		// No content, just hang up with a http code right now.
 		return c.SendStatus(404)
 	}
 
-	log.Infof("Redirecting to [%s%s] from [%s://%s%s] for remote client [%s] with user-agent: [%s]",
-		redirectURI, uri, scheme, c.Hostname(), uri, remoteAddr, userAgent,
-	)
+	if mappingEntry.Immediate {
+		log.Info().Msg(fmt.Sprintf("Redirecting directly to [%s%s] from [%s://%s%s] for remote client [%s] with user-agent: [%s]",
+			mappingEntry.Redirect, uri, scheme, c.Hostname(), uri, remoteAddr, userAgent,
+		))
 
-	data := NewTemplateData(redirectURI)
+		targetURI := fmt.Sprintf("%s%s", mappingEntry.Redirect, uri)
+		statusCode := 302
+		return c.Redirect(targetURI, statusCode) //nolint
+	}
+
+	log.Info().Msg(fmt.Sprintf("Friendly redirect to [%s%s] from [%s://%s%s] for remote client [%s] with user-agent: [%s]",
+		mappingEntry.Redirect, uri, scheme, c.Hostname(), uri, remoteAddr, userAgent,
+	))
+	data := NewTemplateData(mappingEntry.Redirect)
 	return c.Render("html", data)
 }
 
@@ -294,6 +305,7 @@ func (f *FastServer) setup() *fiber.App {
 	server.Get("/healthy", f.healthy)
 	server.Get("/metrics", f.metrics)
 	server.Get("/*", f.index)
+
 	f.server = server
 	return server
 }
@@ -327,15 +339,16 @@ func createServer(c *cli.Context) *FastServer {
 	config := LoadEnv() // we load env variable settings first, commandline params may override
 	// Must set these first
 	config.setLogLevel(c.String("log-level"))
-	config.setPerformance(c.Bool("performance-mode"))
 	config.setHTTP(c.Bool("http"), c.String("cert"), c.String("key"))
+	config.setPerformance(c.Bool("performance-mode"))
 
 	// config.SetTemplateFromFile(c.String("template"))
 	config.setMappingFile(c.String("file"))
 	config.setPort(c.Int("port"))
 
-	log.Infof("Loaded [%d] redirect mappings.", len(config.MappingsFile.Mappings))
-	log.Infof("Running server on port [%d].", config.Port)
+	log.Info().Msg(fmt.Sprintf("Loaded mappings for [%d] host(s).", len(config.MappingsFile.Mappings)))
+	log.Info().Msg(fmt.Sprintf("Running server on port [%d].", config.Port))
+	//fmt.Printf("%s", config.MappingsFile.Mappings)
 
 	server := NewFastServer(config, config.MappingsFile)
 
@@ -417,7 +430,7 @@ func Run(args []string) {
 	// Bail if any errors
 	err := app.Run(args)
 	if err != nil {
-		log.Fatalf("Exiting due to error: %s", err)
+		log.Fatal().Msg(fmt.Sprintf("Exiting due to error: %s", err))
 	}
 }
 

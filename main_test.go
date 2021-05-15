@@ -2,13 +2,13 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"github.com/rs/zerolog"
 	"github.com/urfave/cli"
 	"go-redirector/errors"
 	"net/http/httptest"
 	"os"
 	"testing"
-
-	"github.com/sirupsen/logrus"
 )
 
 func Test_ConfigFactory(t *testing.T) {
@@ -94,7 +94,7 @@ func Test_ConfigLogLevel(t *testing.T) {
 		t.Errorf("Did not Expected to see an exception, please see logs and test.")
 	}
 	config.setLogLevel(debug)
-	if config.LogLevel != logrus.DebugLevel {
+	if config.LogLevel != zerolog.DebugLevel {
 		t.Errorf("Expected to see logging level set to DEBUG, but saw %v", config.LogLevel)
 	}
 
@@ -312,6 +312,46 @@ func Test_FastServerMappedRoute(t *testing.T) {
 	}
 }
 
+/**
+These routes are set in the test mapping file.
+*/
+func Test_FastServerRedirectMappedRoute(t *testing.T) {
+	testFile := "./tests/test-redirect-map.yml"
+
+	config := NewConfig()
+	config.setMappingFile(testFile)
+	fastServer := NewFastServer(config, config.MappingsFile)
+	fastServer.setup()
+
+	// test friendly: true
+	target := "/my-path"
+	expectedStatusCode := 200
+	request := httptest.NewRequest("GET", target, nil)
+	request.Host = "testhost"
+
+	if resp, err := fastServer.server.Test(request); err != nil {
+		t.Errorf("Did not expect to get an error testing target [%s], error: %v", target, err)
+	} else {
+		if resp.StatusCode != expectedStatusCode {
+			t.Errorf("expected [%d], got [%d]", expectedStatusCode, resp.StatusCode)
+		}
+	}
+
+	// test immediate: false
+	target = "/direct"
+	expectedStatusCode = 302
+	request = httptest.NewRequest("GET", target, nil)
+	request.Host = "testhost"
+
+	if resp, err := fastServer.server.Test(request); err != nil {
+		t.Errorf("Did not expect to get an error testing target [%s], error: %v", target, err)
+	} else {
+		if resp.StatusCode != expectedStatusCode {
+			t.Errorf("expected [%d], got [%d]", expectedStatusCode, resp.StatusCode)
+		}
+	}
+}
+
 func Test_CreateServer(t *testing.T) {
 	// Bare minimum required
 	fl := cli.StringFlag{
@@ -378,5 +418,52 @@ func Test_NewApp(t *testing.T) {
 
 	if app.Usage != DefaultAppName {
 		t.Errorf("Expected to see the default app usage as %s, but found %s", DefaultAppName, app.Name)
+	}
+}
+
+func Test_ParseHost(t *testing.T) {
+	// Bare minimum required
+	fl := cli.StringFlag{
+		Name:  "log-level, l",
+		Value: DefaultLogLevel.String(),
+		Usage: "Log level of the app `LOG_LEVEL`",
+	}
+	flagSet := flag.NewFlagSet("test", 0)
+	fl.Apply(flagSet)
+
+	app := cli.NewApp()
+	context := cli.NewContext(app, flagSet, nil)
+	if context == nil {
+		t.Errorf("bad")
+	}
+
+	server := createServer(context)
+
+	type hostEntry struct {
+		host string
+		port string
+	}
+	type hostList []hostEntry
+
+	cat := func(entry hostEntry) string {
+		return fmt.Sprintf("%s:%s", entry.host, entry.port)
+	}
+
+	commonHost := "localhost"
+	testData := hostList{
+		hostEntry{commonHost, "80"},
+		hostEntry{commonHost, "8080"},
+		hostEntry{commonHost, "8443"},
+		hostEntry{commonHost, "443"},
+	}
+
+	for _, testEntry := range testData {
+		if parsed := server.parseHost(cat(testEntry)); parsed != testEntry.host {
+			t.Errorf("Expected host to be [%s]", testEntry.host)
+		}
+	}
+
+	if parsed := server.parseHost(commonHost); parsed != commonHost {
+		t.Errorf("Expected host to be [%s]", commonHost)
 	}
 }

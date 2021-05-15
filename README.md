@@ -15,9 +15,59 @@ The server can contain multiple mapped entries of host:path -> destination.
 Can be run as a docker container, and comes in at ~ 13MB in size.
 
 
+## Versions
+
+Versions:
+  - `0.2.0`:
+    - added new structure for each path entry, specifying `friendly` (bool, optional, default=true) which when false sends a direct 302, instead of a friendly page. See section _Mapping File_ below in docs.
+    - swapped out logrus with zerolog
+    - improved performance and latency
+  - `0.1.3`:
+    - general improvements found through tests
+
+## Mapping File
+
+### Format
+Each mapping entry has two values which _MUST_ be set.
+1. `immediate`: (bool, optional) false shows a friendly html page with a javascript redirect, otherwise client will receive an immediate 302 (proper for direct GET requests and where you don't want SEO resource link updates).
+2. `redirect`: (string) path starting with `/`. Can be explicitly `/` or `*` to denote being a wildcard. The author personally prefers `/`.
+
+### Sample
+
+The mapping example below creates an entry for host `testhost`.
+This host named `testhost` has two path entries.
+  1. `/my-path` - a specific path
+  2. `/` - presence of a root path `/` is the equivalent of specifying a wildcard. If you wish to exclude this path, then only matching paths (in this case `my-path`) will redirect, all others will return `404`.
+
+
+Preferred:
+```yaml
+---
+mapping:
+  testhost:
+    "/my-path":
+      immediate: true
+      redirect: https://localhost:8081
+    "/":
+      redirect: https://localhost:8082
+```
+
+Alternative Equivalent:
+```yaml
+---
+mapping:
+  testhost:
+    "/my-path":
+      immediate: true
+      redirect: https://localhost:8081
+    "*":
+      redirect: https://localhost:8082
+```
+
 ## Devs
 
 ```shell
+go mod tidy
 go fmt ./...
 golint ./...
 golangci-lint run ./...
@@ -78,8 +128,84 @@ docker run -it --rm -p 8080:8080 go-redirector:0.1.0 /entrypoint run --help
 
 ## Performance Data
 
+### v0.2.0 performance mode
+
+versions `0.2.0` and greater
+
+TLDR: `94483.98 [#/sec] (mean)`
+
+Lower latency and handles ~300% the number of requests based on this simple test. 
+
+Runs with logging set to 'error' and in http mode: `run --performance-mode`
+
+Perf on a 2.9 GHz 6-Core Intel Core i9, 1 Process
+```
+│ Handlers ............. 9  Processes ........... 1 │ 
+│ Prefork ....... Disabled  PID .............  xx   │ 
+└───────────────────────────────────────────────────┘ 
+```
+
+```text
+$ ab -n 200000 -c 20 -k http://testhost:8080/
+This is ApacheBench, Version 2.3 <$Revision: 1843412 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking testhost (be patient)
+Completed 20000 requests
+Completed 40000 requests
+Completed 60000 requests
+Completed 80000 requests
+Completed 100000 requests
+Completed 120000 requests
+Completed 140000 requests
+Completed 160000 requests
+Completed 180000 requests
+Completed 200000 requests
+Finished 200000 requests
+
+
+Server Software:        PlanetVegeta
+Server Hostname:        testhost
+Server Port:            8080
+
+Document Path:          /
+Document Length:        859 bytes
+
+Concurrency Level:      20
+Time taken for tests:   2.117 seconds
+Complete requests:      200000
+Failed requests:        0
+Keep-Alive requests:    200000
+Total transferred:      204400000 bytes
+HTML transferred:       171800000 bytes
+Requests per second:    94483.98 [#/sec] (mean)
+Time per request:       0.212 [ms] (mean)
+Time per request:       0.011 [ms] (mean, across all concurrent requests)
+Transfer rate:          94299.44 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    0   0.0      0       1
+Processing:     0    0   0.1      0       1
+Waiting:        0    0   0.1      0       1
+Total:          0    0   0.1      0       1
+
+Percentage of the requests served within a certain time (ms)
+  50%      0
+  66%      0
+  75%      0
+  80%      0
+  90%      0
+  95%      0
+  98%      0
+  99%      1
+ 100%      1 (longest request)
+```
 
 ### Fiber Implementation
+
+versions `0.1.1` - `0.1.3`
 
 TLDR: 32583.95 [#/sec] (mean)
 
@@ -93,7 +219,7 @@ Perf on a 2.9 GHz 6-Core Intel Core i9
 └───────────────────────────────────────────────────┘ 
 ```
 
-```shell
+```text
 $ ab -n 200000 -c 20 -k http://testhost:8080/
 
 This is ApacheBench, Version 2.3 <$Revision: 1843412 $>
@@ -157,12 +283,13 @@ Percentage of the requests served within a certain time (ms)
 
 ### Net/HTTP
 
+versions `0.1.0` or earlier.
 
 #### Performance Mode
 
 TLDR: 31187.52 [#/sec] (mean)
 
-```shell
+```text
 $ ab -n 200000 -c 20 -k http://testhost:8080/
 
 This is ApacheBench, Version 2.3 <$Revision: 1843412 $>
@@ -232,7 +359,7 @@ Percentage of the requests served within a certain time (ms)
 
 TLDR: 19407.44 [#/sec] (mean)
 
-```shell
+```text
 $ ab -n 200000 -c 20 -k http://testhost:8080/
 
 This is ApacheBench, Version 2.3 <$Revision: 1843412 $>

@@ -1,5 +1,12 @@
 ---
 mapping:
   testhost:
-    "/my-path": https://localhost:8081
-    "/": https://localhost:8082
+    "/my-path":
+      immediate: false
+      redirect: https://localhost:8081
+    "/direct":
+      immediate: true
+      redirect: https://localhost:8083
+    "/":
+      immediate: true
+      redirect: https://localhost:8082
