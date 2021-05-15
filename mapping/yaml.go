@@ -11,28 +11,16 @@ import (
 
 // Entry defines the inner object for each path
 type Entry struct {
-	Friendly *bool  `yaml:"friendly,omitempty"`
-	Redirect string `yaml:"redirect,omitempty"`
-}
-
-// Defaults will remove the nil pointer we are using with a default value.
-// TODO: rather than doing this I could have just used `direct: true|false`
-//       which we could rely the bool zero value and not have to do any of
-//       this crafty pointer work.
-func (e Entry) Defaults() *Entry {
-	if e.Friendly == nil {
-		friendly := true
-		e.Friendly = &friendly
-	}
-	return &e
+	Immediate bool   `yaml:"immediate,omitempty"`
+	Redirect  string `yaml:"redirect,omitempty"`
 }
 
 // Mapping is a type which is used to store mapping in the mappings file
 type Mapping map[string]Entry
 
 // Get an entry from the mapping
-func (m Mapping) Get(entry string) *Entry {
-	return m[entry].Defaults()
+func (m Mapping) Get(entry string) Entry {
+	return m[entry]
 }
 
 func validStart(path string) bool {
@@ -54,7 +42,7 @@ func validStart(path string) bool {
 // Validate a single mapping
 func (m *Mapping) Validate() error {
 	logEntry := func(entry *Entry, path string) {
-		isFriendly := *entry.Friendly
+		isFriendly := entry.Immediate
 		if isFriendly {
 			log.Debug().Msg(fmt.Sprintf("Evaluating friendly redirect from path [%s] to [%s]", path, entry.Redirect))
 		} else {
@@ -92,8 +80,8 @@ func (m *Mapping) Validate() error {
 
 	for path := range *m {
 		entry := m.Get(path)
-		logEntry(entry, path)
-		if err := validate(entry, path); err != nil {
+		logEntry(&entry, path)
+		if err := validate(&entry, path); err != nil {
 			return err
 		}
 
@@ -155,17 +143,17 @@ func (m *MappingsFile) GetMappingEntry(host string, path string) (*Entry, error)
 	if mappingEntry, ok := m.Mappings[host]; ok {
 		// look for specific
 		if entry := mappingEntry.Get(path); entry.Redirect != "" {
-			return entry, nil
+			return &entry, nil
 		}
 
 		// look for root TODO: might be better to sort later
 		if entry := mappingEntry.Get("/"); entry.Redirect != "" {
-			return entry, nil
+			return &entry, nil
 		}
 
 		// look for wildcard
 		if entry := mappingEntry.Get("*"); entry.Redirect != "" {
-			return entry, nil
+			return &entry, nil
 		}
 	}
 

@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-func newEntry(friendly bool, redirect string) Entry {
+func newEntry(immediate bool, redirect string) Entry {
 	return Entry{
-		&friendly,
+		immediate,
 		redirect,
 	}
 }
@@ -117,8 +117,8 @@ func Test_badMappings(t *testing.T) {
 	for index, testData := range badMappings {
 		mapping := Mapping{
 			testData.path: Entry{
-				Friendly: testData.mappingEntry.Friendly,
-				Redirect: testData.mappingEntry.Redirect,
+				Immediate: testData.mappingEntry.Immediate,
+				Redirect:  testData.mappingEntry.Redirect,
 			},
 		}
 		if err := mapping.Validate(); err == nil {
@@ -178,10 +178,9 @@ func Test_MappingFileWithLocalhost(t *testing.T) {
 mapping:
   localhost:
     "/my-path":
-      friendly: true
+      immediate: false
       redirect: https://localhost:8081
     "/":
-      friendly: true
       redirect: https://localhost:8082
 `
 
@@ -195,10 +194,9 @@ func Test_MappingFileWithRoot(t *testing.T) {
 mapping:
   testhost:
     "/my-path":
-      friendly: true
+      immediate: false
       redirect: https://localhost:8081
     "/":
-      friendly: true
       redirect: https://localhost:8082
 `
 
@@ -226,7 +224,6 @@ func Test_MappingFileWithoutRoot(t *testing.T) {
 mapping:
   testhost:
     "/my-path":
-      friendly: true
       redirect: https://localhost:8081
 `
 	if data, err := Parse([]byte(testFile)); err != nil {
@@ -306,7 +303,6 @@ func Test_GetMappingEntryNoRoot(t *testing.T) {
 mapping:
   %s:
     "/my-path":
-      friendly: true
       redirect: https://localhost:8081
 `, host)
 
@@ -334,10 +330,8 @@ func Test_GetMappingEntryWithRoot(t *testing.T) {
 mapping:
   %s:
     "/my-path":
-      friendly: true
       redirect: https://localhost:8081
     "/":
-      friendly: true
       redirect: https://localhost:8082
 `, host)
 
@@ -365,10 +359,8 @@ func Test_GetMappingEntryWithWildcard(t *testing.T) {
 mapping:
   %s:
     "/my-path":
-      friendly: true
       redirect: https://localhost:8081
     "*":
-      friendly: true
       redirect: https://localhost:8082
 `, host)
 

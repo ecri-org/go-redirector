@@ -78,7 +78,8 @@ type Config struct {
 func (c *Config) setPerformance(performanceMode bool) {
 	c.PerformanceMode = performanceMode
 	if performanceMode {
-		log.Info().Msg("Performance Mode Enabled")
+		log.Info().Msg("Performance Mode Enabled, overriding to HTTP mode")
+		c.setHTTP(true, "", "")
 		c.setLogLevel("error")
 	}
 }
@@ -259,7 +260,7 @@ func (f *FastServer) index(c *fiber.Ctx) error {
 		return c.SendStatus(404)
 	}
 
-	if !*mappingEntry.Friendly {
+	if mappingEntry.Immediate {
 		log.Info().Msg(fmt.Sprintf("Redirecting directly to [%s%s] from [%s://%s%s] for remote client [%s] with user-agent: [%s]",
 			mappingEntry.Redirect, uri, scheme, c.Hostname(), uri, remoteAddr, userAgent,
 		))
@@ -269,7 +270,7 @@ func (f *FastServer) index(c *fiber.Ctx) error {
 		return c.Redirect(targetURI, statusCode) //nolint
 	}
 
-	log.Info().Msg(fmt.Sprintf("Friendly redirecting to [%s%s] from [%s://%s%s] for remote client [%s] with user-agent: [%s]",
+	log.Info().Msg(fmt.Sprintf("Friendly redirect to [%s%s] from [%s://%s%s] for remote client [%s] with user-agent: [%s]",
 		mappingEntry.Redirect, uri, scheme, c.Hostname(), uri, remoteAddr, userAgent,
 	))
 	data := NewTemplateData(mappingEntry.Redirect)
@@ -338,8 +339,8 @@ func createServer(c *cli.Context) *FastServer {
 	config := LoadEnv() // we load env variable settings first, commandline params may override
 	// Must set these first
 	config.setLogLevel(c.String("log-level"))
-	config.setPerformance(c.Bool("performance-mode"))
 	config.setHTTP(c.Bool("http"), c.String("cert"), c.String("key"))
+	config.setPerformance(c.Bool("performance-mode"))
 
 	// config.SetTemplateFromFile(c.String("template"))
 	config.setMappingFile(c.String("file"))

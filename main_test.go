@@ -337,7 +337,7 @@ func Test_FastServerRedirectMappedRoute(t *testing.T) {
 		}
 	}
 
-	// test friendly: false
+	// test immediate: false
 	target = "/direct"
 	expectedStatusCode = 302
 	request = httptest.NewRequest("GET", target, nil)
