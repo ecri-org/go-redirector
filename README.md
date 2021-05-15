@@ -20,6 +20,7 @@ Can be run as a docker container, and comes in at ~ 13MB in size.
 Versions:
   - `0.2.0`:
     - added new structure for each path entry, specifying `friendly` (bool, optional, default=true) which when false sends a direct 302, instead of a friendly page. See section _Mapping File_ below in docs.
+    - swapped out logrus with zerolog 
   - `0.1.3`:
     - general improvements found through tests
 
@@ -63,6 +64,7 @@ mapping:
 ## Devs
 
 ```shell
+go mod tidy
 go fmt ./...
 golint ./...
 golangci-lint run ./...

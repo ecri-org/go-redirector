@@ -15,13 +15,12 @@ type Entry struct {
 	Redirect string `yaml:"redirect,omitempty"`
 }
 
-func (e Entry) clone() *Entry {
-	return &Entry{e.Friendly, e.Redirect}
-}
-
+// Defaults will remove the nil pointer we are using with a default value.
+// TODO: rather than doing this I could have just used `direct: true|false`
+//       which we could rely the bool zero value and not have to do any of
+//       this crafty pointer work.
 func (e Entry) Defaults() *Entry {
-	newEntry := e.clone()
-	if newEntry.Friendly == nil {
+	if e.Friendly == nil {
 		friendly := true
 		e.Friendly = &friendly
 	}
@@ -36,40 +35,50 @@ func (m Mapping) Get(entry string) *Entry {
 	return m[entry].Defaults()
 }
 
+func validStart(path string) bool {
+	if path == "" {
+		return false
+	}
+
+	if path[0] == '/' {
+		return true
+	}
+
+	if path[0] == '*' {
+		return true
+	}
+
+	return false
+}
+
 // Validate a single mapping
 func (m *Mapping) Validate() error {
-	for path, _ := range *m {
-		entry := m.Get(path)
-
-		//isFriendly := *entry.Friendly
-		//if isFriendly == true {
-		//	log.Debugf("Parsed friendly redirect from path [%s] to [%s]", path, entry.Redirect)
-		//} else {
-		//	log.Debugf("Parsed direct redirect from path [%s] to [%s]", path, entry.Redirect)
-		//}
-
-		log.Debug().Msg(fmt.Sprintf("Parsed redirect from path [%s] to [%s]", path, entry.Redirect))
-
-		if path == "*" {
-			return nil
+	logEntry := func(entry *Entry, path string) {
+		isFriendly := *entry.Friendly
+		if isFriendly {
+			log.Debug().Msg(fmt.Sprintf("Evaluating friendly redirect from path [%s] to [%s]", path, entry.Redirect))
+		} else {
+			log.Debug().Msg(fmt.Sprintf("Evaluating direct redirect from path [%s] to [%s]", path, entry.Redirect))
 		}
-		if path == "" {
-			msg := "Found empty string as path."
-			log.Error().Msg(fmt.Sprintf(msg))
+	}
+
+	// WARNING: only return errors, leaving the last line a fall through nil. An early return
+	//          will cause issues as file reads are async you risk exiting validation earlier
+	//          than intended.
+	validate := func(entry *Entry, path string) error {
+		if !validStart(path) {
+			msg := fmt.Sprintf("Redirect uri [%s] must always be prefixed with '/' or '*', no relative or empty paths accepted here.", path)
+			log.Error().Msg(msg)
 			return errors.New(msg)
 		}
-		if path[0] != '/' {
-			msg := fmt.Sprintf("Redirect uri [%s] must always be prefixed with '/', no relative paths accepted here.\n", path)
-			log.Error().Msg(fmt.Sprintf(msg))
-			return errors.New(msg)
-		}
+
 		if _, err := url.ParseRequestURI(path); err != nil {
 			return err
 		}
 
 		uri, err := url.ParseRequestURI(entry.Redirect)
 		if err != nil {
-			log.Debug().Msg(fmt.Sprintf("Redirect uri is not fully qualified."))
+			log.Debug().Msg("Redirect uri is not fully qualified.")
 			return err
 		}
 
@@ -77,6 +86,17 @@ func (m *Mapping) Validate() error {
 			msg := fmt.Sprintf("Redirect uri scheme on [%s] needs to be changed and use 'https' as the scheme.", uri.String())
 			return errors.New(msg)
 		}
+
+		return nil
+	}
+
+	for path := range *m {
+		entry := m.Get(path)
+		logEntry(entry, path)
+		if err := validate(entry, path); err != nil {
+			return err
+		}
+
 	}
 
 	return nil
@@ -126,7 +146,7 @@ func (m *MappingsFile) GetRedirectURI(host string, path string) string {
 	}
 
 	msg := fmt.Sprintf("Could not find host and path [%s%s]", host, path)
-	log.Debug().Msg(fmt.Sprintf(msg))
+	log.Debug().Msg(msg)
 	return ""
 }
 
@@ -150,7 +170,7 @@ func (m *MappingsFile) GetMappingEntry(host string, path string) (*Entry, error)
 	}
 
 	msg := fmt.Sprintf("Could not find host and path [%s%s]", host, path)
-	log.Debug().Msg(fmt.Sprintf(msg))
+	log.Debug().Msg(msg)
 	return nil, errors.New(msg)
 }
 
@@ -178,6 +198,6 @@ func LoadMappingFile(file string) (*MappingsFile, error) {
 		return nil, errors.Errorf(msg)
 	}
 
-	log.Debug().Msg(fmt.Sprintf("Able to parse yaml file"))
+	log.Debug().Msg("Able to parse yaml file")
 	return Parse(data)
 }

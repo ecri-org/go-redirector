@@ -3,13 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/rs/zerolog"
 	"github.com/urfave/cli"
 	"go-redirector/errors"
 	"net/http/httptest"
 	"os"
 	"testing"
-
-	"github.com/sirupsen/logrus"
 )
 
 func Test_ConfigFactory(t *testing.T) {
@@ -95,7 +94,7 @@ func Test_ConfigLogLevel(t *testing.T) {
 		t.Errorf("Did not Expected to see an exception, please see logs and test.")
 	}
 	config.setLogLevel(debug)
-	if config.LogLevel != logrus.DebugLevel {
+	if config.LogLevel != zerolog.DebugLevel {
 		t.Errorf("Expected to see logging level set to DEBUG, but saw %v", config.LogLevel)
 	}
 

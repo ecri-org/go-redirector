@@ -117,7 +117,7 @@ func (c *Config) setMappingFile(filePath string) {
 }
 
 func (c *Config) setLogLevel(logLevel string) {
-	if level, err := zerolog.ParseLevel(logLevel); err != nil {
+	if level, err := zerolog.ParseLevel(strings.ToLower(logLevel)); err != nil {
 		log.Error().Msg(fmt.Sprintf("Error: %v", err))
 		c.exitFunc(errors.ExitCodeInvalidLoglevel)
 	} else {
