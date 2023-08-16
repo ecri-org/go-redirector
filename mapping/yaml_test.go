@@ -13,7 +13,8 @@ func newEntry(immediate bool, redirect string) Entry {
 	}
 }
 
-/**
+/*
+*
 These patterns will not pass validation.
 */
 var badMappings = []struct {
@@ -84,6 +85,13 @@ var badMappings = []struct {
 		),
 	},
 	{
+		"/pathA?page=1", // query param in path
+		newEntry(
+			true,
+			"https://127.0.0.1",
+		),
+	},
+	{
 		"", // empty path
 		newEntry(
 			true,
@@ -128,7 +136,8 @@ func Test_badMappings(t *testing.T) {
 	}
 }
 
-/**
+/*
+*
 Here we test access to the mappings map. We also enforce that it is a map if anyone changes it.
 */
 func Test_MappingsMap(t *testing.T) {
@@ -258,7 +267,8 @@ func Test_MappingFileWithEmptyPath(t *testing.T) {
 	}
 }
 
-/**
+/*
+*
 Rely on the tests above to test the mapping. Here we test for files that exist, or those
 that cannot be loaded via `yaml.Unmarshal()`.
 */
@@ -291,8 +301,10 @@ func Test_LoadMappingFile(t *testing.T) {
 		}
 
 		mapping := file.Mappings[keys[0].String()]
-		if len(*mapping) != 3 { // i.e. how many path entries exist for the host
-			t.Errorf("Expected to find two path mappings for the key [%s], instead found [%d]", keys[0], len(*mapping))
+		mappingLen := len(*mapping)
+		expectedLen := 3
+		if mappingLen != expectedLen { // i.e. how many path entries exist for the host
+			t.Errorf("Expected to find [%d] path mappings for the key [%s], instead found [%d]", expectedLen, keys[0], mappingLen)
 		}
 	}
 }

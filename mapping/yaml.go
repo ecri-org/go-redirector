@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"net/url"
+	"strings"
 )
 
 // Entry defines the inner object for each path
@@ -56,6 +57,12 @@ func (m *Mapping) Validate() error {
 	validate := func(entry *Entry, path string) error {
 		if !validStart(path) {
 			msg := fmt.Sprintf("Redirect uri [%s] must always be prefixed with '/' or '*', no relative or empty paths accepted here.", path)
+			log.Error().Msg(msg)
+			return errors.New(msg)
+		}
+
+		if strings.Contains(path, "?") {
+			msg := fmt.Sprintf("Mapping entries for path should not contain query params, only redirects can have params - path found [%s]", path)
 			log.Error().Msg(msg)
 			return errors.New(msg)
 		}

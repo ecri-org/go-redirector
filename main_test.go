@@ -249,7 +249,8 @@ func Test_FastServerRoutes(t *testing.T) {
 	testServer("/metrics")
 }
 
-/**
+/*
+*
 Test routes not found and specifically favicon which we return as 404.
 */
 func Test_FastServerNotFoundRoutes(t *testing.T) {
@@ -286,7 +287,8 @@ func Test_FastServerNotFoundRoutes(t *testing.T) {
 	}
 }
 
-/**
+/*
+*
 These routes are set in the test mapping file.
 */
 func Test_FastServerMappedRoute(t *testing.T) {
@@ -312,7 +314,8 @@ func Test_FastServerMappedRoute(t *testing.T) {
 	}
 }
 
-/**
+/*
+*
 These routes are set in the test mapping file.
 */
 func Test_FastServerRedirectMappedRoute(t *testing.T) {
@@ -465,5 +468,61 @@ func Test_ParseHost(t *testing.T) {
 
 	if parsed := server.parseHost(commonHost); parsed != commonHost {
 		t.Errorf("Expected host to be [%s]", commonHost)
+	}
+}
+
+func Test_cleanPath(t *testing.T) {
+	type pathType struct {
+		path     string
+		expected string
+	}
+
+	type pathList []pathType
+
+	testData := pathList{
+		pathType{"/one", "/one"},
+		pathType{"/two", "/two"},
+		pathType{"two", "two"},
+		pathType{"/", ""},
+		pathType{"", ""},
+		pathType{"?page=one", "?page=one"},
+	}
+
+	for _, testEntry := range testData {
+		actual := cleanPath(testEntry.path)
+		if actual != testEntry.expected {
+			t.Errorf("Expected [%s], got [%s]", testEntry.expected, actual)
+		}
+	}
+}
+
+func Test_formatTargetUri(t *testing.T) {
+	type testRedirect struct {
+		redirect         string // the redirect
+		uri              string // any additional params passed in, we retain
+		expectedRedirect string
+	}
+
+	type testList []testRedirect
+
+	testData := testList{
+		testRedirect{"one.example.org/redirect", "/page?id=one", "one.example.org/redirect/page?id=one"},
+		testRedirect{"two.example.org/redirect/", "page?id=one", "two.example.org/redirect/page?id=one"},
+		testRedirect{"three.example.org/redirect/", "", "three.example.org/redirect/"},
+		testRedirect{"four.example.org/redirect", "", "four.example.org/redirect"},
+		testRedirect{"five.example.org", "/", "five.example.org"},
+		testRedirect{"six.example.org/", "", "six.example.org/"},
+		testRedirect{"seven.example.org/page?id=one", "", "seven.example.org/page?id=one"},
+		testRedirect{"eight.example.org/page?id=one", "/", "eight.example.org/page?id=one"},
+		testRedirect{"nine.example.org/page?id=one", "/page?id=two", "nine.example.org/page?id=one/page?id=two"},
+		// entering into the impossibilities as we don't allow mapping entries with a '?'
+		testRedirect{"ten.example.org/page?id=one", "page?id=two", "ten.example.org/page?id=onepage?id=two"},
+	}
+
+	for _, testEntry := range testData {
+		actual := formatTargetUri("", testEntry.redirect, testEntry.uri)
+		if actual != testEntry.expectedRedirect {
+			t.Errorf("Expected redirect to be [%s], got [%s]", testEntry.expectedRedirect, actual)
+		}
 	}
 }

@@ -1,3 +1,6 @@
 ---
 mapping:
   testhost: 1
+  "/my-path4?page=1":
+    immediate: true
+    redirect: https://localhost:8084

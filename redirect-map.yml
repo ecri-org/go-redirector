@@ -5,9 +5,12 @@ mapping:
       redirect: https://localhost:8081
     "/my-path2":
       immediate: false
-      redirect: https://localhost:8084
-    "/direct":
+      redirect: https://localhost:8082
+    "/my-path3":
       immediate: true
       redirect: https://localhost:8083
+    "/direct":
+      immediate: true
+      redirect: https://localhost:8084
     "*":
-      redirect: https://localhost:8082
+      redirect: https://localhost:8085
