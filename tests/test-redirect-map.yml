@@ -7,6 +7,6 @@ mapping:
     "/direct":
       immediate: true
       redirect: https://localhost:8083
-    "/":
+    "/file-1":
       immediate: true
-      redirect: https://localhost:8082
+      redirect: https://localhost:8084

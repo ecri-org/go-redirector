@@ -18,6 +18,9 @@ Can be run as a docker container, and comes in at ~ 13MB in size.
 ## Versions
 
 Versions:
+  - `0.2.1`:
+    - fix bug when some paths when empty return a trailing slash
+    - further clarify what characters may not be present in paths
   - `0.2.0`:
     - added new structure for each path entry, specifying `friendly` (bool, optional, default=true) which when false sends a direct 302, instead of a friendly page. See section _Mapping File_ below in docs.
     - swapped out logrus with zerolog
@@ -37,7 +40,10 @@ Each mapping entry has two values which _MUST_ be set.
 The mapping example below creates an entry for host `testhost`.
 This host named `testhost` has two path entries.
   1. `/my-path` - a specific path
-  2. `/` - presence of a root path `/` is the equivalent of specifying a wildcard. If you wish to exclude this path, then only matching paths (in this case `my-path`) will redirect, all others will return `404`.
+     - paths cannot have params (`/pathA?page=1`), only redirects may
+     - paths cannot be fragments (`/pathA#fragment`), only redirects may
+     - paths OR redirects **cannot** have runes (`"/\x7f#fragment"`) 
+  2. `/` or `*` - presence of a root path `/` is the equivalent of specifying a wildcard. If you wish to exclude this path, then only matching paths (in this case `my-path`) will redirect, all others will return `404`.
 
 
 Preferred:
@@ -95,7 +101,8 @@ This will allow the server to run.
 docker run -it --rm \
   -p 8443:8443 \
   -v ./certs:/certs \
-  go-redirector:0.1.0 \
+  -v $(pwd)/redirect-map.yml:/redirect-map.yml \
+  ghcr.io/ecri-org/go-redirector:latest \
   /go-redirector run
 ```
 
@@ -105,24 +112,24 @@ Other flags which may be useful are:
 ```shell
 docker run -it --rm \
   -p 8080:8080 \
-  -v ./certs:/certs \
-  go-redirector:0.1.0 \
+  -v $(pwd)/redirect-map.yml:/redirect-map.yml \
+  ghcr.io/ecri-org/go-redirector:latest \
   /go-redirector run --http
 ```
 
 Version
 ```shell
-docker run -it --rm -p 8080:8080 go-redirector:0.1.0 /entrypoint --version
+docker run -it --rm -p 8080:8080 ghcr.io/ecri-org/go-redirector:latest /entrypoint --version
 ```
 
 Help
 ```shell
-docker run -it --rm -p 8080:8080 go-redirector:0.1.0 /entrypoint --help
+docker run -it --rm -p 8080:8080 ghcr.io/ecri-org/go-redirector:latest /entrypoint --help
 ```
 
 Run Help
 ```shell
-docker run -it --rm -p 8080:8080 go-redirector:0.1.0 /entrypoint run --help
+docker run -it --rm -p 8080:8080 ghcr.io/ecri-org/go-redirector:latest /entrypoint run --help
 ```
 
 

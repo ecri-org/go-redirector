@@ -207,7 +207,8 @@ type FastServer struct {
 	//PrometheusExporter *prometheus.Exporter
 }
 
-/**
+/*
+*
 Respond to health only if host is localhost. Simple guard.
 Rely on metrics in future for stats.
 Systems deploying (docker, k8) can craft headers with localhost in probes.
@@ -241,6 +242,25 @@ func (f *FastServer) notfound(c *fiber.Ctx) error {
 	return c.SendStatus(404)
 }
 
+func cleanPath(uriPath string) string {
+	if uriPath == "/" {
+		return ""
+	} else {
+		return uriPath
+	}
+}
+
+func formatTargetUri(format string, redirect string, uriPath string) string {
+	usePath := cleanPath(uriPath)
+
+	if len(format) <= 0 {
+		return fmt.Sprintf("%s%s", redirect, usePath)
+	} else {
+		return fmt.Sprintf(format, redirect, usePath)
+	}
+
+}
+
 func (f *FastServer) index(c *fiber.Ctx) error {
 	c.Set("Content-Type", "text/html")
 
@@ -265,7 +285,7 @@ func (f *FastServer) index(c *fiber.Ctx) error {
 			mappingEntry.Redirect, uri, scheme, c.Hostname(), uri, remoteAddr, userAgent,
 		))
 
-		targetURI := fmt.Sprintf("%s%s", mappingEntry.Redirect, uri)
+		targetURI := formatTargetUri("%s%s", mappingEntry.Redirect, uri)
 		statusCode := 302
 		return c.Redirect(targetURI, statusCode) //nolint
 	}
@@ -285,7 +305,8 @@ func (f *FastServer) parseHost(host string) string {
 	return host
 }
 
-/**
+/*
+*
 Bootstrap routes
 */
 func (f *FastServer) setup() *fiber.App {
